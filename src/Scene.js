@@ -27,7 +27,7 @@ class Scene {
 
   constructor() {
     this._gl = null; // webgl context
-    console.log("SCENE.JS LOADED: v=debug4 (Deep Trace Active)");
+    console.log("SCENE.JS LOADED: v=debug5 (Fix VR Sculpting)");
 
     this._cameraSpeed = 0.25;
 
@@ -1359,6 +1359,12 @@ class Scene {
     // Picking - 5cm sphere at controller tip
     let picked = this._picking.intersectionSphereMeshes(this._meshes, origin, 0.05);
 
+    // Deep Trace: Sculpting
+    if (!this._sculptLogThrottle) this._sculptLogThrottle = 0;
+    if (this._sculptLogThrottle++ % 60 === 0) {
+      console.log(`VR Sculpt Trace: Picked=${picked}, Origin=[${origin[0].toFixed(3)}, ${origin[1].toFixed(3)}, ${origin[2].toFixed(3)}]`);
+    }
+
     if (picked) {
       this._picking._rWorld2 = 0.05 * 0.05;
       const mesh = this._picking.getMesh();
@@ -1370,6 +1376,11 @@ class Scene {
 
         // Update Debug Cursor
         if (this.updateDebugCursor) this.updateDebugCursor(worldInter, true);
+
+        // Log Pick Details occassionally
+        if (this._sculptLogThrottle % 60 === 0) {
+          console.log("VR Pick Details:", worldInter);
+        }
       }
 
       // Handle Trigger State for Sculpting
@@ -1380,17 +1391,16 @@ class Scene {
         if (!this._vrSculpting) {
           this._vrSculpting = true;
           this._sculptManager.start(false); // Start Stroke
-      // Force Action for consistency (though start() sets it usually?)
-      // Scene doesn't have _action state like SculptGL?
-      // SculptGL has _action. Scene has _sculptManager.
-      // SculptManager handles the stroke.
+          console.log("VR Sculpt Started");
         }
         this._sculptManager.preUpdate(); // Update position/pressure
-        this._sculptManager.update();    // Perform stroke
+        // Fix: Use updateXR for VR sculpting
+        this._sculptManager.updateXR(this._picking);    // Perform stroke
       } else {
         if (this._vrSculpting) {
           this._vrSculpting = false;
           this._sculptManager.end();
+          console.log("VR Sculpt Ended (Trigger Release)");
         }
         this._sculptManager.preUpdate(); // Just update cursor pos
       }
@@ -1400,6 +1410,7 @@ class Scene {
       if (this._vrSculpting) {
         this._vrSculpting = false;
         this._sculptManager.end();
+        console.log("VR Sculpt Ended (Lost Pick)");
       }
       if (this.updateDebugCursor) this.updateDebugCursor(null, false);
     }

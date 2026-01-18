@@ -88,6 +88,21 @@ class SculptBase {
   startSculpt() {
     if (this._lockPosition === true)
       return;
+
+    // VR Support: Initial stroke
+    if (this._main._xrSession) {
+      if (this.makeStrokeXR) {
+        var picking = this._main.getPicking();
+        var pickingSym = this._main.getSculptManager().getSymmetry() ? this._main.getPickingSymmetry() : null;
+        this.makeStrokeXR(picking, pickingSym);
+
+        // Init lastInter for continuous update
+        var inter = picking.getIntersectionPoint();
+        if (inter) this._lastInter = [inter[0], inter[1], inter[2]];
+      }
+      return;
+    }
+
     this.sculptStroke();
   }
 
