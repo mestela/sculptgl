@@ -54,6 +54,11 @@ class GuiXR {
     this._needsUpdate = true;
   }
 
+  setCursor(x, y) {
+    // Placeholder to match Scene.js expectations
+    // Will be implemented in Step 1
+  }
+
   updateTexture() {
     if (!this._needsUpdate || !this._texture) return;
 
