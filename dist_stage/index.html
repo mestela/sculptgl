@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang='en'>
+
+<head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>SculptGL WebXR PoC</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #333;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #vr-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 999;
+        }
+
+        #log {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: lime;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px;
+            pointer-events: auto;
+            user-select: text;
+            max-height: 50%;
+            overflow: auto;
+            z-index: 1000;
+            white-space: pre-wrap;
+        }
+    </style>
+
+    <script type="importmap">
+  {
+    "imports": {
+      "gl-matrix": "./lib/gl-matrix-wrapper.js",
+      "hammerjs": "./lib/hammer-wrapper.js",
+      "yagui": "./lib/yagui.js",
+      "file-saver": "./lib/file-saver-wrapper.js",
+      "zip": "./lib/zip-wrapper.js",
+      "sketchfab-oauth2-1.2.0": "./lib/sketchfab-wrapper.js",
+
+      "misc/Polyfill": "./src/misc/Polyfill.js",
+      "misc/Tablet": "./src/misc/Tablet.js",
+      "misc/Enums": "./src/misc/Enums.js",
+      "misc/Utils": "./src/misc/Utils.js",
+      "misc/getOptionsURL": "./src/misc/getOptionsURL.js",
+      
+      "math3d/Camera": "./src/math3d/Camera.js",
+      "math3d/Picking": "./src/math3d/Picking.js",
+      "math3d/Geometry": "./src/math3d/Geometry.js",
+      "math3d/OctreeCell": "./src/math3d/OctreeCell.js",
+      
+      "gui/Gui": "./src/gui/Gui.js",
+      "gui/GuiBackground": "./src/gui/GuiBackground.js",
+      "gui/GuiCamera": "./src/gui/GuiCamera.js",
+      "gui/GuiConfig": "./src/gui/GuiConfig.js",
+      "gui/GuiFiles": "./src/gui/GuiFiles.js",
+      "gui/GuiMesh": "./src/gui/GuiMesh.js",
+      "gui/GuiRendering": "./src/gui/GuiRendering.js",
+      "gui/GuiScene": "./src/gui/GuiScene.js",
+      "gui/GuiSculpting": "./src/gui/GuiSculpting.js",
+      "gui/GuiSculptingTools": "./src/gui/GuiSculptingTools.js",
+      "gui/GuiStates": "./src/gui/GuiStates.js",
+      "gui/GuiTablet": "./src/gui/GuiTablet.js",
+      "gui/GuiTopology": "./src/gui/GuiTopology.js",
+      "gui/GuiTR": "./src/gui/GuiTR.js",
+      "gui/GuiXR": "./src/gui/GuiXR.js",
+      
+      "gui/tr/chinese": "./src/gui/tr/chinese.js",
+      "gui/tr/english": "./src/gui/tr/english.js",
+      "gui/tr/french": "./src/gui/tr/french.js",
+      "gui/tr/german": "./src/gui/tr/german.js",
+      "gui/tr/italian": "./src/gui/tr/italian.js",
+      "gui/tr/japanese": "./src/gui/tr/japanese.js",
+      "gui/tr/korean": "./src/gui/tr/korean.js",
+      "gui/tr/russian": "./src/gui/tr/russian.js",
+      "gui/tr/swedish": "./src/gui/tr/swedish.js",
+      "gui/tr/turkish": "./src/gui/tr/turkish.js",
+      
+      "editing/Gizmo": "./src/editing/Gizmo.js",
+      "editing/HoleFilling": "./src/editing/HoleFilling.js",
+      "editing/MarchingCubes": "./src/editing/MarchingCubes.js",
+      "editing/Remesh": "./src/editing/Remesh.js",
+      "editing/Reversion": "./src/editing/Reversion.js",
+      "editing/SculptManager": "./src/editing/SculptManager.js",
+      "editing/Subdivision": "./src/editing/Subdivision.js",
+      "editing/SurfaceNets": "./src/editing/SurfaceNets.js",
+      
+      "editing/tools/Brush": "./src/editing/tools/Brush.js",
+      "editing/tools/Crease": "./src/editing/tools/Crease.js",
+      "editing/tools/Drag": "./src/editing/tools/Drag.js",
+      "editing/tools/Flatten": "./src/editing/tools/Flatten.js",
+      "editing/tools/Inflate": "./src/editing/tools/Inflate.js",
+      "editing/tools/LocalScale": "./src/editing/tools/LocalScale.js",
+      "editing/tools/Masking": "./src/editing/tools/Masking.js",
+      "editing/tools/Move": "./src/editing/tools/Move.js",
+      "editing/tools/Paint": "./src/editing/tools/Paint.js",
+      "editing/tools/Pinch": "./src/editing/tools/Pinch.js",
+      "editing/tools/SculptBase": "./src/editing/tools/SculptBase.js",
+      "editing/tools/Smooth": "./src/editing/tools/Smooth.js",
+      "editing/tools/Tools": "./src/editing/tools/Tools.js",
+      "editing/tools/Transform": "./src/editing/tools/Transform.js",
+      "editing/tools/Twist": "./src/editing/tools/Twist.js",
+
+      "files/Export": "./src/files/Export.js",
+      "files/ExportMaterialise": "./src/files/ExportMaterialise.js",
+      "files/ExportOBJ": "./src/files/ExportOBJ.js",
+      "files/ExportPLY": "./src/files/ExportPLY.js",
+      "files/ExportSculpteo": "./src/files/ExportSculpteo.js",
+      "files/ExportSGL": "./src/files/ExportSGL.js",
+      "files/ExportSketchfab": "./src/files/ExportSketchfab.js",
+      "files/ExportSTL": "./src/files/ExportSTL.js",
+      "files/Import": "./src/files/Import.js",
+      "files/ImportOBJ": "./src/files/ImportOBJ.js",
+      "files/ImportPLY": "./src/files/ImportPLY.js",
+      "files/ImportSGL": "./src/files/ImportSGL.js",
+      "files/ImportSTL": "./src/files/ImportSTL.js",
+      
+      "mesh/Mesh": "./src/mesh/Mesh.js",
+      "mesh/MeshData": "./src/mesh/MeshData.js",
+      "mesh/RenderData": "./src/mesh/RenderData.js",
+      "mesh/TransformData": "./src/mesh/TransformData.js",
+      "mesh/dynamic/Decimation": "./src/mesh/dynamic/Decimation.js",
+      "mesh/dynamic/MeshDynamic": "./src/mesh/dynamic/MeshDynamic.js",
+      "mesh/dynamic/Subdivision": "./src/mesh/dynamic/Subdivision.js",
+      "mesh/meshStatic/MeshStatic": "./src/mesh/meshStatic/MeshStatic.js",
+      "mesh/multiresolution/MeshResolution": "./src/mesh/multiresolution/MeshResolution.js",
+      "mesh/multiresolution/Multimesh": "./src/mesh/multiresolution/Multimesh.js",
+      
+      "render/Attribute": "./src/render/Attribute.js",
+      "render/Buffer": "./src/render/Buffer.js",
+      "render/ShaderLib": "./src/render/ShaderLib.js",
+      "render/WebGLCaps": "./src/render/WebGLCaps.js",
+      
+      "render/shaders/ShaderBackground": "./src/render/shaders/ShaderBackground.js",
+      "render/shaders/ShaderBase": "./src/render/shaders/ShaderBase.js",
+      "render/shaders/ShaderBlur": "./src/render/shaders/ShaderBlur.js",
+      "render/shaders/ShaderContour": "./src/render/shaders/ShaderContour.js",
+      "render/shaders/ShaderFlat": "./src/render/shaders/ShaderFlat.js",
+      "render/shaders/ShaderFxaa": "./src/render/shaders/ShaderFxaa.js",
+      "render/shaders/ShaderMatcap": "./src/render/shaders/ShaderMatcap.js",
+      "render/shaders/ShaderMerge": "./src/render/shaders/ShaderMerge.js",
+      "render/shaders/ShaderNormal": "./src/render/shaders/ShaderNormal.js",
+      "render/shaders/ShaderPaintUV": "./src/render/shaders/ShaderPaintUV.js",
+      "render/shaders/ShaderPBR": "./src/render/shaders/ShaderPBR.js",
+      "render/shaders/ShaderSelection": "./src/render/shaders/ShaderSelection.js",
+      "render/shaders/ShaderUV": "./src/render/shaders/ShaderUV.js",
+      "render/shaders/ShaderWireframe": "./src/render/shaders/ShaderWireframe.js",
+      "render/shaders/ShaderTexture": "./src/render/shaders/ShaderTexture.js",
+
+      "states/StateAddRemove": "./src/states/StateAddRemove.js",
+      "states/StateColorAndMaterial": "./src/states/StateColorAndMaterial.js",
+      "states/StateCustom": "./src/states/StateCustom.js",
+      "states/StateDynamic": "./src/states/StateDynamic.js",
+      "states/StateGeometry": "./src/states/StateGeometry.js",
+      "states/StateManager": "./src/states/StateManager.js",
+      "states/StateMultiresolution": "./src/states/StateMultiresolution.js",
+      
+      "drawables/Background": "./src/drawables/Background.js",
+      "drawables/Gnomon": "./src/drawables/Gnomon.js",
+      "drawables/Primitives": "./src/drawables/Primitives.js",
+      "drawables/Rtt": "./src/drawables/Rtt.js",
+      "drawables/Selection": "./src/drawables/Selection.js",
+      "drawables/VRLaser": "./src/drawables/VRLaser.js",
+      "drawables/VRMenu": "./src/drawables/VRMenu.js?v=FIXED",
+
+      "misc/": "./src/misc/",
+      "math3d/": "./src/math3d/",
+      "gui/": "./src/gui/",
+      "gui/GuiXR": "./src/gui/GuiXR.js?v=FIXED",
+      "editor/": "./src/editor/",
+      "editing/": "./src/editing/",
+      "files/": "./src/files/",
+      "mesh/": "./src/mesh/",
+      "render/": "./src/render/",
+      "states/": "./src/states/",
+      "drawables/": "./src/drawables/",
+      
+      "render/shaders/glsl/colorSpace.glsl": "./src/render/shaders/glsl/colorSpace.glsl.js",
+      "render/shaders/glsl/curvature.glsl": "./src/render/shaders/glsl/curvature.glsl.js",
+      "render/shaders/glsl/fxaa.glsl": "./src/render/shaders/glsl/fxaa.glsl.js",
+      "render/shaders/glsl/mainBackground.glsl": "./src/render/shaders/glsl/mainBackground.glsl.js",
+      "render/shaders/glsl/outline.glsl": "./src/render/shaders/glsl/outline.glsl.js",
+      "render/shaders/glsl/pbr.glsl": "./src/render/shaders/glsl/pbr.glsl.js",
+      
+      "Scene": "./src/Scene.js?v=FIXED",
+      "SculptGL": "./src/SculptGL.js"
+    }
+  }
+  </script>
+</head>
+
+<body>
+    <button id="vr-button">Enter VR</button>
+
+    <div id="log"></div>
+    <div id="viewport">
+        <canvas id='canvas'></canvas>
+    </div>
+
+    <!-- Hidden inputs expected by SculptGL -->
+    <input type='file' id='fileopen' multiple style='display: none' />
+    <input type='file' id='backgroundopen' style='display: none' />
+    <input type='file' id='alphaopen' style='display: none' />
+    <input type='file' id='textureopen' style='display: none' />
+    <input type='file' id='matcapopen' style='display: none' />
+
+    <script type="module">
+        // Move execution to window.onload to ensure logDiv exists
+        window.onload = async function () {
+            // Overlay Logger
+            const logDiv = document.getElementById('log');
+            function screenLog(msg, color = 'lime') {
+                logDiv.innerHTML += `<span style="color:${color}">${msg}</span><br>`;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+
+            // Wrap console
+            const cls = console.log;
+            const cerr = console.error;
+            const cwarn = console.warn;
+
+            console.log = (...args) => { cls(...args); screenLog(args.join(' ')); };
+            console.error = (...args) => { cerr(...args); screenLog(args.join(' '), 'red'); };
+            console.warn = (...args) => { cwarn(...args); screenLog(args.join(' '), 'orange'); };
+
+            console.log("Initializing SculptGL for WebXR...");
+            const APP_VERSION = "v0.3.61 (Total Reset)";
+            console.log("VERSION: " + APP_VERSION);
+
+            // Check HTTPS
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                console.warn("WebXR requires HTTPS or localhost!");
+                console.warn("Current: " + location.href);
+            }
+
+            try {
+                // Dynamic import to catch module errors
+                const module = await import('SculptGL');
+                const SculptGL = module.default;
+
+                const app = new SculptGL();
+                app.start();
+                window.app = app; // For debugging
+                console.log("SculptGL started successfully.");
+            } catch (e) {
+                console.error("CRITICAL: Failed to load SculptGL module:", e);
+                console.error(e.message);
+                return;
+            }
+
+            // VR Button Logic
+            const btn = document.getElementById('vr-button');
+            if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                    if (supported) {
+                        btn.addEventListener('click', onEnterVR);
+                    } else {
+                        btn.disabled = true;
+                        btn.textContent = 'VR Not Supported';
+                    }
+                });
+            } else {
+                btn.style.display = 'none';
+            }
+
+
+
+            async function onEnterVR() {
+                try {
+                    // Request session with local-floor
+                    // Note: local-floor is required for 6DoF height, but some devices might support it as optional
+                    const session = await navigator.xr.requestSession('immersive-vr', {
+                        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
+                    }); if (app.enterXR) {
+                        app.enterXR(session);
+                    } else {
+                        console.warn("enterXR not implemented on SculptGL instance yet.");
+                    }
+                } catch (e) {
+                    console.error("Failed to start VR", e);
+                }
+            }
+        };
+    </script>
+</body>
+
+</html>
