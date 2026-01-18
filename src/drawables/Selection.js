@@ -173,6 +173,10 @@ class Selection {
 
     this._isEditMode = false;
   }
+
+  renderVR(main) {
+    // Prevent crash - logic to be implemented later
+  }
 }
 
 export default Selection;

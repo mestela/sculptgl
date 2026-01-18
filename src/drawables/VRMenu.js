@@ -146,27 +146,20 @@ class VRMenu {
     if (lx < -w || lx > w || ly < -h || ly > h) return null;
 
     // Map to UV [0,1]
-    // -w -> 0, +w -> 1 
+    // -w -> 0, +w -> 1
     // u = (lx + w) / (2*w)
+    // V calculation: Map 3D Top (+h) to Canvas Top (0)
+    // V calculation: Map 3D Top (+h) to Canvas Top (0)
     const u = (lx + w) / (2 * w);
-    const v = 1.0 - (ly + h) / (2 * h); // Revert: 1.0 - to fix Inversion
-    // TexCoords: (-w,-h) -> (0,1)?
-    // Vertices:
-    // -w, -h => 0.0, 1.0 (Top-Left in gl coords? usually 0,0 is bottom-left)
-    // -w, -h: 0,1. 
-    // w, -h: 1,1.
-    // -w, h: 0,0.
-    // w, h: 1,0.
-    // So h is Top (V=0), -h is Bottom (V=1).
-    // Y increases up.
-    // So -h (bottom) -> V=1. h (top) -> V=0.
-    // v = 1.0 - (ly + h) / (2 * h)?
-    // if ly = h (top), (h+h)/2h = 1. V should be 0.
-    // if ly = -h (bottom), (-h+h)/2h = 0. V should be 1.
-    // So target V = 1 - (ly + h)/(2*h). Correct.
+    const v = (ly + h) / (2 * h); // Re-Reverted (User says inverted)
+
+    // Throttle logs
+    // if (Math.random() < 0.05) {
+    //   console.log(`[VRMenu] Hit! Local: ${lx.toFixed(2)},${ly.toFixed(2)} UV: ${u.toFixed(2)},${v.toFixed(2)}`);
+    // }
 
     return {
-      uv: [u, (ly + h) / (2 * h)],
+      uv: [u, v],
       distance: t
     };
   }

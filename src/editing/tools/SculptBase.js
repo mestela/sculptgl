@@ -21,6 +21,14 @@ class SculptBase {
     this._lastMouseY = 0.0;
   }
 
+  setRadius(val) {
+    this._radius = val;
+  }
+
+  setIntensity(val) {
+    this._intensity = val;
+  }
+
   setToolMesh(mesh) {
     // to be called when we create a new instance of a tool operator
     // that is no part of the main application Sculpt container (e.g smooth)

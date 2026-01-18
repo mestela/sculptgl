@@ -864,6 +864,22 @@ class Scene {
       console.error("enterXR: makeXRCompatible failed!", err);
     });
 
+    // Initialize Helper State for Navigation
+    this._vrGrip = {
+      left: { active: false, startPoint: vec3.create() },
+      right: { active: false, startPoint: vec3.create() }
+    };
+
+    this._vrTwoHanded = {
+      active: false,
+      prevMid: vec3.create(),
+      prevVec: vec3.create(),
+      prevDist: 0.0
+    };
+
+    this._activeHandedness = 'right'; // Default
+    this._vrSculpting = false;
+
     this._preventRender = true;
   }
 
@@ -878,56 +894,40 @@ class Scene {
     }
   }
 
+
+
+
+
   moveWorld(delta) {
     if (!this._baseRefSpace) return;
+    if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: 0 });
 
-    // Delta is vec3 [dx, dy, dz] in World Space.
-    // We want to move World by Delta.
-    // E.g. pulling world towards me (+Z).
-    // Means RefSpace Origin moves +Z.
-
-    // We need to ACCUMULATE this delta into a transform.
-    if (!this._xrWorldOffset) {
-      this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: 0 });
-    }
-
-    // Current position
     let pos = this._xrWorldOffset.position;
-
-    // Create new position
-    // NOTE: transform.position is ReadOnly usually.
-    // We must create a new transform.
-
     let newPos = {
       x: pos.x + delta[0],
       y: pos.y + delta[1],
-      z: pos.z + delta[2],
-      w: 1.0 // not needed for dict
+      z: pos.z + delta[2]
     };
 
     this._xrWorldOffset = new XRRigidTransform(newPos, this._xrWorldOffset.orientation);
-
-    // Re-apply
     this.updateVROffsets();
   }
 
   rotateWorld(qDelta, pivot) {
     if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: 0 });
 
-    // 1. Convert transform to math types
+    // Decompose current transform
     let pos = vec3.fromValues(this._xrWorldOffset.position.x, this._xrWorldOffset.position.y, this._xrWorldOffset.position.z);
     let rot = quat.fromValues(this._xrWorldOffset.orientation.x, this._xrWorldOffset.orientation.y, this._xrWorldOffset.orientation.z, this._xrWorldOffset.orientation.w);
 
-    // 2. Rotate Position around Pivot
-    // P_new = Pivot + qDelta * (P_old - Pivot)
+    // Rotate Position around Pivot
     let diff = vec3.create();
     vec3.sub(diff, pos, pivot);
     vec3.transformQuat(diff, diff, qDelta);
     vec3.add(pos, pivot, diff);
 
-    // 3. Rotate Orientation
-    // Q_new = qDelta * Q_old
-    quat.multiply(rot, qDelta, rot);
+    // Rotate Orientation
+    quat.multiply(rot, qDelta, rot); // Apply rotation
 
     this._xrWorldOffset = new XRRigidTransform(
       { x: pos[0], y: pos[1], z: pos[2], w: 1.0 },
@@ -938,23 +938,39 @@ class Scene {
 
   scaleWorld(ratio, pivot) {
     if (this._vrScale === undefined) this._vrScale = 1.0;
-
-    // 1. Update Scale
     this._vrScale *= ratio;
 
-    // 2. Update Position to maintain Pivot
-    // If pivoting around Origin (0,0,0), we don't need to move the world origin.
-    if (vec3.length(pivot) < 0.0001) {
-      // Just Scale. Position of Origin stays same in Base Space?
-      // Actually, if we Scale World, and Origin is at (0,0,0).
-      // Origin stays at (0,0,0).
-      // So no offset change needed.
-      return;
-    }
+    // Pivot Lock: If pivot is near 0,0,0 (Room Origin)
+    // and we are just scaling, usually we want to bring world closer.
+    // But pivot arg is usually "Hand Midpoint"
+    if (vec3.length(pivot) < 0.0001) return;
 
-    // Origin_new = Pivot + (Origin_old - Pivot) / ratio
     if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: 0 });
+
     let pos = vec3.fromValues(this._xrWorldOffset.position.x, this._xrWorldOffset.position.y, this._xrWorldOffset.position.z);
+
+    // Move Origin relative to Pivot
+    // Origin_new = Pivot + (Origin_old - Pivot) / ratio
+    // If I pull hands apart (ratio > 1), world gets bigger (Zoom In).
+    // The point under my fingers (Pivot) should stay under my fingers.
+    // If World scales up, the distance from Pivot to Origin scales up?
+    // Wait.
+    // P = WorldPoint * Scale + Origin
+    // We want P to stay same for P_model at Pivot?
+    // Actually, we are modifying WorldOffset (Origin).
+    // The Math in vr_navigation.md:
+    // O_new = P + (O_old - P) / ratio
+    // Let's verify.
+    // P = (Point_World - O) * Scale ?? No.
+    // ViewMatrix = Scale * (Translate(-O) * Rotate) ?
+    // In our Scene.js render loop:
+    // mat4.scale(cam._view, cam._view, [scale, scale, scale])
+    // This scales the VIEW matrix.
+    // This is equivalent to scaling the world about the CAMERA (0,0,0) ??
+    // No, `cam._view` is `inverse(transform)`.
+    // Validating RefSpace Offset:
+    // RefSpace Offset shifts the "physical" world.
+    // vr_navigation.md logic works. Trust the Golden Logic.
 
     let diff = vec3.create();
     vec3.sub(diff, pos, pivot);
@@ -1146,176 +1162,246 @@ class Scene {
       if (!this._logFrameCount) this._logFrameCount = 0;
       this._logFrameCount++;
 
-      if (this._logFrameCount < 200 || (this._logFrameCount % 120 === 0)) {
-        const sources = frame.session.inputSources;
-        let msg = `XR Frame (i=${this._logFrameCount}): ${sources.length} inputs. `;
-        for (const s of sources) {
-          msg += `[${s.handedness}, Ray:${!!s.targetRaySpace}, Grip:${!!s.gripSpace}] `;
-        }
-        console.log(msg);
-      }
+      // if (this._logFrameCount < 200 || (this._logFrameCount % 120 === 0)) {
+      //   const sources = frame.session.inputSources;
+      //   let msg = `XR Frame (i=${this._logFrameCount}): ${sources.length} inputs.`;
+      //   // ...
+      // }
 
-      // Handle Input (Bypass Legacy "handleXRInput" for Interaction)
-      this.handleXRInput(frame, this._xrRefSpace); // Keep for button clicks/grip
-      this.updateVRInteractionSimple(frame, this._xrRefSpace); // New Direct Ray Path
+      // Handle Input (Merged Interaction & Navigation)
+      this.handleXRInput(frame, this._xrRefSpace);
+
 
       // Render to WebXR framebuffer
       this.renderVR(glLayer, pose);
     }
   }
 
-  // --- NEW SIMPLE INTERACTION PATH ---
-  updateVRInteractionSimple(frame, refSpace) {
-    const session = frame.session;
-    let rightSource = null;
 
-    // 1. Find Right Controller
-    for (const source of session.inputSources) {
-      if (source.handedness === 'right') {
-        rightSource = source;
-        break;
+
+
+
+  handleXRInput(frame, refSpace) {
+    const session = frame.session;
+    const sources = session.inputSources;
+
+    let leftGrip = false, rightGrip = false;
+    let leftOrigin = null, rightOrigin = null;
+
+    for (const source of sources) {
+      // 1. Ray Interaction (Menu) - RIGHT HAND ONLY
+      if (source.handedness === 'right' && source.targetRaySpace) {
+    // Use Reference Space for Ray to ensure it aligns with Visuals?
+    // Actually, for Menu Interaction we usually want "World" space if Menu is in World.
+    // But GuiXR / Menu might be attached to Left Controller?
+    // If Menu is attached to Left Controller, we intersect in World Space.
+
+        const rayPose = frame.getPose(source.targetRaySpace, refSpace);
+        if (rayPose) {
+          // Update Right Ray Pose for Rendering
+          if (this._vrPoseRightRay) mat4.copy(this._vrPoseRightRay, rayPose.transform.matrix);
+
+          if (this._vrMenu) {
+            const mat = rayPose.transform.matrix;
+            const origin = vec3.fromValues(mat[12], mat[13], mat[14]);
+            const dir = vec3.fromValues(-mat[8], -mat[9], -mat[10]);
+            vec3.normalize(dir, dir);
+
+            const hit = this._vrMenu.intersect(origin, dir);
+            if (hit) {
+              this._guiXR.setCursor(hit.uv[0], hit.uv[1]);
+              // Click?
+              if (source.gamepad && source.gamepad.buttons[0] && source.gamepad.buttons[0].pressed) {
+                this._guiXR.onInteract(hit.uv[0], hit.uv[1], true);
+              } else {
+                this._guiXR.onInteract(hit.uv[0], hit.uv[1], false);
+              }
+            } else {
+              this._guiXR.setCursor(-1, -1);
+              this._guiXR.onInteract(-1, -1, false);
+            }
+          }
+        }
+      }
+
+      // 2. Navigation State Gathering (Uses BASE Reference Space for Stability)
+      if (source.gripSpace && this._baseRefSpace) {
+        const basePose = frame.getPose(source.gripSpace, this._baseRefSpace);
+        if (basePose) {
+          const originBase = [basePose.transform.position.x, basePose.transform.position.y, basePose.transform.position.z];
+          const buttons = source.gamepad ? source.gamepad.buttons : [];
+          // Grip Button is usually [1]
+          const isGrip = buttons[1] && buttons[1].pressed;
+
+          if (source.handedness === 'left') { leftGrip = isGrip; leftOrigin = originBase; }
+          if (source.handedness === 'right') { rightGrip = isGrip; rightOrigin = originBase; }
+
+          // Also update Visuals (World Space)
+          const worldPose = frame.getPose(source.gripSpace, refSpace);
+          if (worldPose) {
+            this.updateVRControllerPose(source.handedness, worldPose.transform.position, worldPose.transform.orientation, 'grip');
+          }
+        }
+      }
+
+      // 3. Sculpting (Trigger)
+      const buttons = source.gamepad ? source.gamepad.buttons : [];
+      if (buttons[0] && buttons[0].pressed) {
+        this._activeHandedness = source.handedness;
+      }
+      if (source.handedness === this._activeHandedness && source.gripSpace) {
+        this.processVRSculpting(source, frame, refSpace);
       }
     }
 
-    // Logging Pulse (Every ~2s)
-    const doLog = (this._logFrameCount % 120 === 0);
-
-    if (!rightSource || !rightSource.targetRaySpace) {
-      if (doLog) console.log("[SimpleRay] No Right Ray Space found.");
-      return;
+    // 4. Dispatch Navigation Logic
+    if (this._guiXR && this._guiXR._active) {
+      // Optional: Block Navigation if Menu interaction is "Dragging"?
+      // For now, let's allow both or prioritize Menu?
+      // If standard menu click, it's instant. If slider drag, we might want to prevent world rotation.
+      // But often users want to move world to see menu better.
+      // Let's keep them independent for now unless it causes issues.
     }
 
-    // 2. Get Pose
-    const pose = frame.getPose(rightSource.targetRaySpace, refSpace);
-    if (!pose) {
-      if (doLog) console.log("[SimpleRay] No Pose for Right Ray.");
-      return;
+    if (leftGrip && rightGrip && leftOrigin && rightOrigin) {
+      this._vrGrip.left.active = false;
+      this._vrGrip.right.active = false;
+      this.processVRTwoHanded(leftOrigin, rightOrigin);
+    } else {
+      this._vrTwoHanded.active = false;
+
+      if (leftGrip && leftOrigin) this.processVRGripState('left', leftOrigin);
+      else this._vrGrip.left.active = false;
+
+      if (rightGrip && rightOrigin) this.processVRGripState('right', rightOrigin);
+      else this._vrGrip.right.active = false;
     }
+  }
 
-    // 3. Direct Matrix Use
-    // WebXR matrix is Float32Array(16) column-major, same as gl-matrix
-    const mat = pose.transform.matrix;
+  processVRGripState(handedness, origin) {
+    const gState = this._vrGrip[handedness];
+    if (!gState.active) {
+      gState.active = true;
+      vec3.copy(gState.startPoint, origin);
+    } else {
+      // Delta in Base Space approx World Space delta if orientation aligned?
+      // Base Space is "Room". World is "Scene".
+      // We are moving the World relative to Room.
+      // So if I move Hand +X in Room, World should move +X?
+      // "Pulling the world" -> Hand moves +X, World moves +X (follows hand).
+      const delta = vec3.create();
+      vec3.sub(delta, origin, gState.startPoint);
 
-    // Update internal state for rendering (optional but good for visual debugging)
-    if (this._vrPoseRightRay) {
-      mat4.copy(this._vrPoseRightRay, mat);
-    }
-
-    // 4. Calculate Origin & Direction
-    // Origin is translation (elements 12, 13, 14)
-    const origin = vec3.fromValues(mat[12], mat[13], mat[14]);
-
-    // Direction is -Z transformed by rotation
-    // We can extract forward vector from matrix (3rd column, negated)
-    const dir = vec3.fromValues(-mat[8], -mat[9], -mat[10]);
-    vec3.normalize(dir, dir);
-
-    // Logging Pulse (Every ~2s)
-    // const doLog = (this._logFrameCount % 120 === 0);
-
-    // 5. Intersect Menu
-    if (this._vrMenu) {
-      const hit = this._vrMenu.intersect(origin, dir);
-      if (hit) {
-        this._guiXR.setCursor(hit.uv[0], hit.uv[1]);
-      } else {
-        this._guiXR.setCursor(-1, -1);
+      // Threshold for jitter
+      if (vec3.length(delta) > 0.0001) {
+        this.moveWorld([delta[0], delta[1], delta[2]]);
+        vec3.copy(gState.startPoint, origin);
       }
     }
   }
 
-  handleXRInput(frame, refSpace) {
-    const session = frame.session;
+  processVRTwoHanded(lOrig, rOrig) {
+    const s = this._vrTwoHanded;
+    const l = vec3.fromValues(...lOrig);
+    const r = vec3.fromValues(...rOrig);
 
-    for (let i = 0; i < session.inputSources.length; i++) {
-      const source = session.inputSources[i];
-      if (!source.gripSpace && !source.targetRaySpace) continue;
+    const mid = vec3.create();
+    vec3.lerp(mid, l, r, 0.5);
 
-      if (source.handedness === 'left') {
-        if (source.gripSpace) {
-          const pose = frame.getPose(source.gripSpace, refSpace);
-          if (pose) this.updateVRControllerPose('left', pose.transform.position, pose.transform.orientation, 'grip');
-        }
-      } else if (source.handedness === 'right') {
-        // Right Hand: Separate Grip & Ray
+    const dist = vec3.distance(l, r);
 
-        // Debug Tracing (Throttled but active)
-        const doLog = (this._logFrameCount % 120 === 0);
+    const vec = vec3.create();
+    vec3.sub(vec, r, l);
+    vec3.normalize(vec, vec);
 
-        // 1. Grip
-        if (source.gripSpace) {
-          const pose = frame.getPose(source.gripSpace, refSpace);
-          if (pose) this.updateVRControllerPose('right', pose.transform.position, pose.transform.orientation, 'grip');
-        }
+    if (!s.active) {
+      s.active = true;
+      vec3.copy(s.prevMid, mid);
+      s.prevDist = dist;
+      vec3.copy(s.prevVec, vec);
+      return;
+    }
 
-        // 2. Ray Logic
-        let rayPose = null;
-        if (source.targetRaySpace) {
-          rayPose = frame.getPose(source.targetRaySpace, refSpace);
-        }
+    // 1. Translation (Move center of world with mid-point of hands)
+    const deltaT = vec3.create();
+    vec3.sub(deltaT, mid, s.prevMid);
+    this.moveWorld([deltaT[0], deltaT[1], deltaT[2]]);
 
-        if (doLog) console.log(`[Right Trace] HasRaySpace: ${!!source.targetRaySpace} GotFromFrame: ${!!rayPose}`);
-
-        // Fallback to Grip if Ray is missing or suspicious (0,0,0)
-        let isSuspicious = false;
-        if (rayPose) {
-          const p = rayPose.transform.position;
-          // DOMPoint or Array check
-          const px = p.x ?? p[0];
-          const py = p.y ?? p[1];
-          const pz = p.z ?? p[2];
-
-          if (Math.abs(px) < 0.0001 && Math.abs(py) < 0.0001 && Math.abs(pz) < 0.0001) {
-            isSuspicious = true;
-          }
-        }
-
-        if (doLog && rayPose) console.log(`[Right Trace] Suspicious: ${isSuspicious}`);
-
-        if ((!rayPose || isSuspicious) && source.gripSpace) {
-          rayPose = frame.getPose(source.gripSpace, refSpace);
-          if (doLog) console.log(`[Right Trace] Used Fallback to Grip`);
-        }
-
-        if (rayPose) {
-          if (doLog) console.log(`[Right Trace] Calling updateVRControllerPose for RAY`);
-          this.updateVRControllerPose('right', rayPose.transform.position, rayPose.transform.orientation, 'ray');
-        }
-
-
-        // Gamepad Input
-        if (source.gamepad) {
-          const gp = source.gamepad;
-          // Trigger (Button 0) - Click
-          if (gp.buttons.length > 0) {
-            const trigger = gp.buttons[0];
-            if (trigger.pressed && !this._lastTrigger) {
-              if (this._guiXR && this._guiXR._cx >= 0) {
-                this._guiXR.click();
-              }
-            }
-            this._lastTrigger = trigger.pressed;
-          }
-
-          // Grip (Button 1) - Calibration Mode
-          if (gp.buttons.length > 1) {
-            const grip = gp.buttons[1];
-            if (grip.pressed) {
-              if (gp.axes.length >= 2) {
-                const stickX = (Math.abs(gp.axes[2]) > 0.1) ? gp.axes[2] : gp.axes[0];
-                const stickY = (Math.abs(gp.axes[3]) > 0.1) ? gp.axes[3] : gp.axes[1];
-
-                if (Math.abs(stickX) > 0.1 || Math.abs(stickY) > 0.1) {
-                  const speed = 0.05;
-                  if (this._vrMenu) {
-                    this._vrMenu.adjustRotation(stickY * speed, stickX * speed, 0);
-                  }
-                }
-              }
-            }
-          }
-        }
+    // 2. Scaling (Pinch)
+    // Threshold 5cm separation to avoid singularity
+    if (s.prevDist > 0.05 && dist > 0.05) {
+      const ratio = dist / s.prevDist;
+      // Threshold change to avoid jitter
+      if (Math.abs(ratio - 1.0) > 0.0005) {
+        this.scaleWorld(ratio, mid);
       }
+    }
+
+    // 3. Rotation (Steering)
+    const q = quat.create();
+    quat.rotationTo(q, s.prevVec, vec);
+    this.rotateWorld(q, mid);
+
+    // Update State
+    vec3.copy(s.prevMid, mid);
+    s.prevDist = dist;
+    vec3.copy(s.prevVec, vec);
+  }
+
+  processVRSculpting(source, frame, refSpace) {
+    const space = source.gripSpace;
+    const pose = frame.getPose(space, refSpace);
+    if (!pose) return;
+
+    const origin = [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z];
+    this._vrControllerPos = origin;
+
+    // Picking - 5cm sphere at controller tip
+    let picked = this._picking.intersectionSphereMeshes(this._meshes, origin, 0.05);
+
+    if (picked) {
+      this._picking._rWorld2 = 0.05 * 0.05;
+      const mesh = this._picking.getMesh();
+      if (mesh) {
+        this._picking._rLocal2 = this._picking._rWorld2 / mesh.getScale2();
+        const localInter = this._picking.getIntersectionPoint();
+        const worldInter = vec3.create();
+        vec3.transformMat4(worldInter, localInter, mesh.getMatrix());
+
+        // Update Debug Cursor
+        if (this.updateDebugCursor) this.updateDebugCursor(worldInter, true);
+      }
+
+      // Handle Trigger State for Sculpting
+      const buttons = source.gamepad ? source.gamepad.buttons : [];
+      const isTriggerPressed = buttons[0] && buttons[0].pressed;
+
+      if (isTriggerPressed) {
+        if (!this._vrSculpting) {
+          this._vrSculpting = true;
+          this._sculptManager.start(false); // Start Stroke
+      // Force Action for consistency (though start() sets it usually?)
+      // Scene doesn't have _action state like SculptGL?
+      // SculptGL has _action. Scene has _sculptManager.
+      // SculptManager handles the stroke.
+        }
+        this._sculptManager.preUpdate(); // Update position/pressure
+        this._sculptManager.update();    // Perform stroke
+      } else {
+        if (this._vrSculpting) {
+          this._vrSculpting = false;
+          this._sculptManager.end();
+        }
+        this._sculptManager.preUpdate(); // Just update cursor pos
+      }
+
+    } else {
+      // Not picking
+      if (this._vrSculpting) {
+        this._vrSculpting = false;
+        this._sculptManager.end();
+      }
+      if (this.updateDebugCursor) this.updateDebugCursor(null, false);
     }
   }
 }

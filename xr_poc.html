@@ -183,11 +183,12 @@
       "drawables/Rtt": "./src/drawables/Rtt.js",
       "drawables/Selection": "./src/drawables/Selection.js",
       "drawables/VRLaser": "./src/drawables/VRLaser.js",
-      "drawables/VRMenu": "./src/drawables/VRMenu.js",
+      "drawables/VRMenu": "./src/drawables/VRMenu.js?v=FIXED",
 
       "misc/": "./src/misc/",
       "math3d/": "./src/math3d/",
       "gui/": "./src/gui/",
+      "gui/GuiXR": "./src/gui/GuiXR.js?v=FIXED",
       "editor/": "./src/editor/",
       "editing/": "./src/editing/",
       "files/": "./src/files/",
@@ -203,7 +204,7 @@
       "render/shaders/glsl/outline.glsl": "./src/render/shaders/glsl/outline.glsl.js",
       "render/shaders/glsl/pbr.glsl": "./src/render/shaders/glsl/pbr.glsl.js",
       
-      "Scene": "./src/Scene.js?v=simple1",
+      "Scene": "./src/Scene.js?v=FIXED",
       "SculptGL": "./src/SculptGL.js"
     }
   }
@@ -245,7 +246,7 @@
             console.warn = (...args) => { cwarn(...args); screenLog(args.join(' '), 'orange'); };
 
             console.log("Initializing SculptGL for WebXR...");
-            const APP_VERSION = "v0.3.34 (Flip Y)";
+            const APP_VERSION = "v0.3.61 (Total Reset)";
             console.log("VERSION: " + APP_VERSION);
 
             // Check HTTPS
