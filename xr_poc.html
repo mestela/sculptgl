@@ -246,7 +246,7 @@
             console.warn = (...args) => { cwarn(...args); screenLog(args.join(' '), 'orange'); };
 
             console.log("Initializing SculptGL for WebXR...");
-            const APP_VERSION = "v0.3.61 (Total Reset)";
+            const APP_VERSION = "v0.3.62 - Passthrough & AR";
             console.log("VERSION: " + APP_VERSION);
 
             // Check HTTPS
@@ -270,36 +270,48 @@
                 return;
             }
 
-            // VR Button Logic
+            // VR/AR Button Logic
             const btn = document.getElementById('vr-button');
+            let sessionType = 'immersive-vr';
+
             if ('xr' in navigator) {
-                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                // Check AR Support first (Passthrough)
+                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
                     if (supported) {
+                        sessionType = 'immersive-ar';
+                        btn.textContent = 'Enter AR';
                         btn.addEventListener('click', onEnterVR);
                     } else {
-                        btn.disabled = true;
-                        btn.textContent = 'VR Not Supported';
+                // Fallback to VR
+                        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                            if (supported) {
+                                sessionType = 'immersive-vr';
+                                btn.textContent = 'Enter VR';
+                                btn.addEventListener('click', onEnterVR);
+                            } else {
+                                btn.disabled = true;
+                                btn.textContent = 'VR Not Supported';
+                            }
+                        });
                     }
                 });
             } else {
                 btn.style.display = 'none';
             }
 
-
-
             async function onEnterVR() {
                 try {
-                    // Request session with local-floor
-                    // Note: local-floor is required for 6DoF height, but some devices might support it as optional
-                    const session = await navigator.xr.requestSession('immersive-vr', {
+                    // Request session
+                    const session = await navigator.xr.requestSession(sessionType, {
                         optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
-                    }); if (app.enterXR) {
+                    });
+                    if (app.enterXR) {
                         app.enterXR(session);
                     } else {
                         console.warn("enterXR not implemented on SculptGL instance yet.");
                     }
                 } catch (e) {
-                    console.error("Failed to start VR", e);
+                    console.error("Failed to start XR session", e);
                 }
             }
         };

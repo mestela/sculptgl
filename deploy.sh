@@ -5,7 +5,7 @@
 
 USER=${1:-tokeruadmin}
 HOST=${2:-tokeru.com}
-DEST=${3:-'~/apps/sculptgl-vr/'}
+DEST=${3:-'~/tokeru.com/sculptgl-vr/'}
 
 if [ -z "$USER" ] || [ -z "$HOST" ] || [ -z "$DEST" ]; then
   echo "Usage: $0 [USER] [HOST] [DEST_PATH]"

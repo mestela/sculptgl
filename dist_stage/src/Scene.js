@@ -440,7 +440,7 @@ class Scene {
     if (this._meshPreview) this._meshPreview.render(this);
 
     // background
-    this._background.render();
+    if (!this._isAR) this._background.render();
 
     ///////////////
     // TRANSPARENT PASS
@@ -503,7 +503,7 @@ class Scene {
     var attributes = {
       antialias: true,
       stencil: true,
-      alpha: false,
+      alpha: true, // Enable alpha for Passthrough
       xrCompatible: true // Enable WebXR compatibility
     };
 
@@ -824,6 +824,7 @@ class Scene {
 
   enterXR(session) {
     this._xrSession = session;
+    this._isAR = session.mode === 'immersive-ar';
     session.addEventListener('end', this.onXREnd.bind(this));
 
     const gl = this._gl;
