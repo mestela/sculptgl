@@ -1,5 +1,6 @@
 import Enums from 'misc/Enums';
 import Utils from 'misc/Utils';
+import { vec3 } from 'gl-matrix';
 
 // Overview sculpt :
 // start (check if we hit the mesh, start state stack) -> startSculpt
@@ -34,8 +35,14 @@ class SculptBase {
     var main = this._main;
     var picking = main.getPicking();
 
-    if (!picking.intersectionMouseMeshes())
-      return false;
+    // VR Bypass: If in VR, we assume picking is already done by handleXRInput
+    if (!main._xrSession) {
+      if (!picking.intersectionMouseMeshes())
+        return false;
+    } else {
+      // In VR, just check if we have a mesh picked
+      if (!picking.getMesh()) return false;
+    }
 
     var mesh = main.setOrUnsetMesh(picking.getMesh(), ctrl);
     if (!mesh)
@@ -51,6 +58,11 @@ class SculptBase {
     this.pushState();
     this._lastMouseX = main._mouseX;
     this._lastMouseY = main._mouseY;
+
+    if (main._xrSession && main._vrControllerPos) {
+      this._lastVRPos = vec3.clone(main._vrControllerPos);
+    }
+
     this.startSculpt();
 
     return true;
@@ -73,6 +85,10 @@ class SculptBase {
 
   preUpdate(canBeContinuous) {
     var main = this._main;
+
+    // VR Bypass: handleXRInput does the intersection logic
+    if (main._xrSession) return;
+
     var picking = main.getPicking();
     var isSculpting = main._action === Enums.Action.SCULPT_EDIT;
 
@@ -200,6 +216,77 @@ class SculptBase {
     var pickingSym = main.getSculptManager().getSymmetry() ? main.getPickingSymmetry() : null;
     this.makeStroke(main._mouseX, main._mouseY, picking, pickingSym);
     this.updateRender();
+  }
+
+  // WebXR Support
+  updateXR(picking) {
+    this.sculptStrokeXR(picking);
+  }
+
+  sculptStrokeXR(picking) {
+    var main = this._main;
+    var pickingSym = main.getSculptManager().getSymmetry() ? main.getPickingSymmetry() : null;
+
+    // Use 3D distance from last intersection point
+    // We assume picking.getIntersectionPoint() is valid (set by handleXRInput)
+    var inter = picking.getIntersectionPoint(); // vec3
+    if (!inter) return;
+
+    if (!this._lastInter) {
+      this._lastInter = [inter[0], inter[1], inter[2]];
+    }
+
+    var dx = inter[0] - this._lastInter[0];
+    var dy = inter[1] - this._lastInter[1];
+    var dz = inter[2] - this._lastInter[2];
+    var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+    // Min spacing: 10% of radius?
+    var radius = picking.getLocalRadius(); // Local units
+    // World radius is fixed in handleXRInput (0.05).
+    // Let's use world dist check?
+    // Scene.js sets _rWorld2 = 0.05*0.05.
+
+    // Just stroke every frame for now, or simple distance check
+    if (dist > 0) {
+      // Interpolation could go here
+      this.makeStrokeXR(picking, pickingSym);
+
+      this._lastInter[0] = inter[0];
+      this._lastInter[1] = inter[1];
+      this._lastInter[2] = inter[2];
+
+      this.updateRender();
+    }
+  }
+
+  makeStrokeXR(picking, pickingSym) {
+    var mesh = this.getMesh();
+    // picking.intersectionMouseMesh(mesh, mouseX, mouseY); // SKIP THIS
+    // picking is already updated by handleXRInput
+
+    var pick1 = picking.getMesh();
+    if (pick1) {
+      picking.pickVerticesInSphere(picking.getLocalRadius2());
+      picking.computePickedNormal();
+    }
+
+    var dynTopo = mesh.isDynamic && !this._lockPosition;
+    if (dynTopo && pick1)
+      this.stroke(picking, false);
+
+    var pick2;
+    if (pickingSym) {
+      // pickingSym needs to be updated manually for VR?
+      // pickingSym.intersectionRayMesh(...) 
+      // For now, disable symmetry in VR or fix later
+      // pickingSym.intersectionMouseMesh(mesh, mouseX, mouseY);
+      // pick2 = pickingSym.getMesh();
+    }
+
+    if (!dynTopo && pick1) this.stroke(picking, false);
+    // if (pick2) this.stroke(pickingSym, true);
+    return pick1; // || pick2;
   }
 
   /** Return the vertices that point toward the camera */

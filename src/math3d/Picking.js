@@ -59,7 +59,7 @@ class Picking {
 
   getAlpha(x, y, z) {
     var alpha = this._alpha;
-    if (!alpha || !alpha._texture) return 1.0;
+    if (!alpha || !alpha._texture || this._main._xrSession) return 1.0;
 
     var m = this._alphaLookAt;
     var rs = this._alphaSide;
@@ -187,6 +187,143 @@ class Picking {
     if (nearFace !== -1)
       this.updateLocalAndWorldRadius2();
     return !!nearMesh;
+  }
+
+  intersectionRayMeshes(meshes, origin, direction) {
+    var nearDistance = Infinity;
+    var nearMesh = null;
+    var nearFace = -1;
+
+    // vNear = origin
+    // vFar = origin + direction * length
+    vec3.copy(_TMP_NEAR_1, origin);
+    vec3.scaleAndAdd(_TMP_FAR, origin, direction, 5000.0);
+
+    for (var i = 0, nbMeshes = meshes.length; i < nbMeshes; ++i) {
+      var mesh = meshes[i];
+      if (!mesh.isVisible()) continue;
+
+      mat4.invert(_TMP_INV, mesh.getMatrix());
+      vec3.transformMat4(_TMP_NEAR, _TMP_NEAR_1, _TMP_INV);
+      vec3.transformMat4(_TMP_FAR, _TMP_FAR, _TMP_INV);
+
+      if (!this.intersectionRayMesh(mesh, _TMP_NEAR, _TMP_FAR)) continue;
+
+      var interTest = this.getIntersectionPoint();
+      // Distance check (world space)
+      // intersectionRayMesh sets _interPoint in LOCAL space
+
+      // Transform local intersection to world to measure distance from origin
+      vec3.transformMat4(_TMP_V1, interTest, mesh.getMatrix());
+      var testDistance = vec3.dist(origin, _TMP_V1);
+
+      if (testDistance < nearDistance) {
+        nearDistance = testDistance;
+        nearMesh = mesh;
+        vec3.copy(_TMP_INTER_1, interTest);
+        nearFace = this.getPickedFace();
+      }
+    }
+
+    this._mesh = nearMesh;
+    vec3.copy(this._interPoint, _TMP_INTER_1);
+    this._pickedFace = nearFace;
+
+    // For radius, we might need to handle it differently in VR
+    // updateLocalAndWorldRadius2 uses screen projection.
+    // We'll trust it works if we fake mouse, OR we overload it.
+    if (nearFace !== -1)
+      this.updateLocalAndWorldRadius2();
+
+    return !!nearMesh;
+  }
+
+  /** Intersection between a sphere and meshes (Contact Picking for VR) */
+  intersectionSphereMeshes(meshes, worldCenter, worldRadius) {
+    var nearDistance = Infinity;
+    var nearMesh = null;
+    var nearFace = -1;
+    var nearPoint = [0.0, 0.0, 0.0];
+
+    var localCenter = [0.0, 0.0, 0.0];
+    var closestPoint = [0.0, 0.0, 0.0];
+
+    // Temp vars for triangle vertices
+    var v1 = [0.0, 0.0, 0.0];
+    var v2 = [0.0, 0.0, 0.0];
+    var v3 = [0.0, 0.0, 0.0];
+    var vAr, fAr;
+
+    var worldRadiusSq = worldRadius * worldRadius;
+
+    for (var i = 0, nbMeshes = meshes.length; i < nbMeshes; ++i) {
+      var mesh = meshes[i];
+      if (!mesh.isVisible()) continue;
+
+      mat4.invert(_TMP_INV, mesh.getMatrix());
+      vec3.transformMat4(localCenter, worldCenter, _TMP_INV);
+
+      var scale = mesh.getScale();
+      var localRadiusSq = worldRadiusSq / (scale * scale);
+
+      // Collect faces in sphere
+      var iFaces = mesh.intersectSphere(localCenter, localRadiusSq);
+      if (iFaces.length === 0) continue;
+
+      vAr = mesh.getVertices();
+      fAr = mesh.getFaces();
+
+      // Find closest face
+      for (var j = 0; j < iFaces.length; ++j) {
+        var indFace = iFaces[j] * 4;
+
+        // Get vertices
+        var iv1 = fAr[indFace] * 3;
+        var iv2 = fAr[indFace + 1] * 3;
+        var iv3 = fAr[indFace + 2] * 3;
+
+        v1[0] = vAr[iv1]; v1[1] = vAr[iv1 + 1]; v1[2] = vAr[iv1 + 2];
+        v2[0] = vAr[iv2]; v2[1] = vAr[iv2 + 1]; v2[2] = vAr[iv2 + 2];
+        v3[0] = vAr[iv3]; v3[1] = vAr[iv3 + 1]; v3[2] = vAr[iv3 + 2];
+
+        // Check distance
+        var distSq = Geometry.distance2PointTriangle(localCenter, v1, v2, v3, closestPoint);
+
+        // Quad check?
+        var iv4 = fAr[indFace + 3];
+        if (iv4 !== Utils.TRI_INDEX) {
+          var iv4i = iv4 * 3;
+          var v4 = [vAr[iv4i], vAr[iv4i + 1], vAr[iv4i + 2]];
+          var closestQuad = [0, 0, 0, 0];
+          var distSq2 = Geometry.distance2PointTriangle(localCenter, v1, v3, v4, closestQuad);
+          if (distSq2 < distSq) {
+            distSq = distSq2;
+            vec3.copy(closestPoint, closestQuad);
+          }
+        }
+
+        if (distSq < localRadiusSq) { // Found a potential hit within radius
+          // Convert dist to world for comparison
+          var worldDist = Math.sqrt(distSq) * scale;
+          if (worldDist < nearDistance) {
+            nearDistance = worldDist;
+            nearMesh = mesh;
+            nearFace = iFaces[j];
+            vec3.copy(nearPoint, closestPoint);
+          }
+        }
+      }
+    }
+
+    if (nearMesh) {
+      this._mesh = nearMesh;
+      vec3.copy(this._interPoint, nearPoint);
+      this._pickedFace = nearFace;
+      this.updateLocalAndWorldRadius2();
+      return true;
+    }
+
+    return false;
   }
 
   /** Intersection between a ray the mouse position */

@@ -141,9 +141,9 @@ var getOptionsURL = function () {
   options.wireframe = queryBool(params.wireframe, false);
   options.curvature = queryNumber(params.curvature, 0, 5, 0); // [0-5]
   options.exposure = queryNumber(params.exposure, 0, 5); // [0-5]
-  options.environment = queryInteger(params.environment, 0, Infinity, 0); // [0-inf]
+  options.environment = queryInteger(params.environment, 0, Infinity, 2); // [0-inf]
   options.matcap = queryInteger(params.matcap, 0, Infinity, 3); // [0-inf]
-  options.shader = getEnum(Enums.Shader, params.shader, Enums.Shader.MATCAP); // pbr/matcap/normal/uv
+  options.shader = getEnum(Enums.Shader, params.shader, Enums.Shader.PBR); // pbr/matcap/normal/uv
   options.filmic = queryBool(params.filmic, false);
 
   options.modelurl = params.modelurl;

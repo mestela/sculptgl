@@ -72,7 +72,7 @@ class Camera {
     this._fov = Math.min(opts.fov, 150); // vertical field of view
 
     // translation stuffs
-    this._trans = [0.0, 0.0, 30.0];
+    this._trans = [0.0, 0.0, 3.0];
     this._moveX = 0; // free look (strafe), possible values : -1, 0, 1
     this._moveZ = 0; // free look (strafe), possible values : -1, 0, 1
 

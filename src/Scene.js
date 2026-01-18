@@ -190,8 +190,9 @@ class Scene {
     var grid = this._grid;
     grid.normalizeSize();
     var gridm = grid.getMatrix();
-    mat4.translate(gridm, gridm, [0.0, -0.45, 0.0]);
-    var scale = 2.5;
+    // mat4.translate(gridm, gridm, [0.0, -0.45, 0.0]); // Reset to 0 for VR
+    mat4.translate(gridm, gridm, [0.0, -0.5, 0.0]); // Floor level (sphere is radius 0.25 (scaled 0.005 * 50?))
+    var scale = 0.1; // Was 2.5, reduce for VR (1/25th size)
     mat4.scale(gridm, gridm, [scale, scale, scale]);
     this._grid.setShaderType(Enums.Shader.FLAT);
     grid.setFlatColor([0.04, 0.04, 0.04]);
@@ -227,7 +228,7 @@ class Scene {
   }
 
   _requestRender() {
-    if (this._preventRender === true)
+    if (this._preventRender === true || this._xrSession)
       return false; // render already requested for the next frame
 
     window.requestAnimationFrame(this.applyRender.bind(this));
@@ -240,7 +241,11 @@ class Scene {
     this._requestRender();
   }
 
-  applyRender() {
+  applyRender(arg) {
+    // requestAnimationFrame passes a timestamp (number) as first argument
+    // We only want a WebGLFramebuffer or null.
+    var targetFBO = (arg && typeof arg === 'object') ? arg : null;
+
     this._preventRender = false;
     this.updateMatricesAndSort();
 
@@ -254,14 +259,88 @@ class Scene {
     gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttMerge.getFramebuffer());
     this._rttMerge.render(this); // merge + decode
 
-    // render to screen
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // render to screen (or target FBO)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, targetFBO);
 
     this._rttOpaque.render(this); // fxaa
 
     gl.enable(gl.DEPTH_TEST);
 
     this._sculptManager.postRender(); // draw sculpting gizmo stuffs
+  }
+
+  // Simplified VR Render (Bypassing RTT/PostProc for now)
+  renderVR(glLayer, pose) {
+    var gl = this._gl;
+    if (!gl) return;
+
+    // FBO is already bound by callee
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+    // Lazy init controllers if missing (and GL is ready)
+    if (!this._vrControllerLeft || !this._vrControllerRight) {
+      this.initVRControllers();
+    }
+
+    var cam = this._camera;
+    var meshes = this._meshes;
+    var grid = this._grid;
+
+    // VR Controllers
+    var ctrls = [];
+    if (this._vrControllerLeft) ctrls.push(this._vrControllerLeft);
+    if (this._vrControllerRight) ctrls.push(this._vrControllerRight);
+
+    for (const view of pose.views) {
+      const viewport = glLayer.getViewport(view);
+      gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+
+      // Update Camera matrices from VR View
+      mat4.copy(cam._view, view.transform.inverse.matrix);
+      mat4.copy(cam._proj, view.projectionMatrix);
+
+      // EXTRA IMPORTANT: Update Model-View-Projection matrices for ALL objects
+      // The shader uniforms are set during render() but they rely on cached matrices from updateMatrices()
+      // We must update them PER EYE because the View/Proj matrix changed!
+
+      // Grid
+      if (this._showGrid && grid) grid.updateMatrices(cam);
+
+      // Controllers
+      for (let j = 0; j < ctrls.length; ++j) ctrls[j].updateMatrices(cam);
+
+      // Meshes
+      for (let i = 0, l = meshes.length; i < l; ++i) {
+        if (!meshes[i].isVisible()) continue;
+        meshes[i].updateMatrices(cam);
+      }
+
+      // Debug Cursor
+      if (this._debugCursor) this._debugCursor.updateMatrices(cam);
+
+      // Draw
+      this._drawSceneVR();
+    }
+  }
+
+  _drawSceneVR() {
+    var gl = this._gl;
+    gl.enable(gl.DEPTH_TEST);
+
+    // grid
+    if (this._showGrid) this._grid.render(this);
+
+    // VR Controllers
+    if (this._vrControllerLeft) this._vrControllerLeft.render(this);
+    if (this._vrControllerRight) this._vrControllerRight.render(this);
+
+    // Meshes
+    // Just render opaque meshes for now
+    var meshes = this._meshes;
+    for (var i = 0, l = meshes.length; i < l; ++i) {
+      if (!meshes[i].isVisible()) continue;
+      meshes[i].render(this);
+    }
   }
 
   _drawScene() {
@@ -291,6 +370,10 @@ class Scene {
 
     // grid
     if (this._showGrid) this._grid.render(this);
+
+    // VR Controllers
+    if (this._vrControllerLeft) this._vrControllerLeft.render(this);
+    if (this._vrControllerRight) this._vrControllerRight.render(this);
 
     // (post opaque pass)
     for (i = 0; i < nbMeshes; ++i) {
@@ -362,8 +445,10 @@ class Scene {
 
   initWebGL() {
     var attributes = {
-      antialias: false,
-      stencil: true
+      antialias: true,
+      stencil: true,
+      alpha: false,
+      xrCompatible: true // Enable WebXR compatibility
     };
 
     var canvas = document.getElementById('canvas');
@@ -501,8 +586,18 @@ class Scene {
     // make a cube and subdivide it
     var mesh = new Multimesh(Primitives.createCube(this._gl));
     mesh.normalizeSize();
+    // 50cm diameter sphere (0.25 radius, but sphere primitive is radius 100 * scale?)
+    // Utils.SCALE is 100.
+    // Primitives.createSphere(gl, radius=50 ...)
+    // Wait, let's keep it simple. 0.01 was 1m. 0.005 is 50cm.
+    mat4.scale(mesh.getMatrix(), mesh.getMatrix(), [0.005, 0.005, 0.005]);
     this.subdivideClamp(mesh);
-    return this.addNewMesh(mesh);
+
+    // Use PBR
+    mesh.setShaderType(Enums.Shader.PBR);
+
+    this.addNewMesh(mesh);
+    return mesh;
   }
 
   addCube() {
@@ -667,6 +762,267 @@ class Scene {
     if (tool && tool._ctrlAlpha)
       tool._ctrlAlpha.setValue(name);
   }
+
+  enterXR(session) {
+    this._xrSession = session;
+    session.addEventListener('end', this.onXREnd.bind(this));
+
+    const gl = this._gl;
+
+    // Ensure context is compatible (some browsers require this even with the flag)
+    console.log("enterXR: calling makeXRCompatible...");
+    gl.makeXRCompatible().then(() => {
+      console.log("enterXR: makeXRCompatible resolved.");
+      try {
+        const baseLayer = new XRWebGLLayer(session, gl);
+        session.updateRenderState({ baseLayer });
+        console.log("enterXR: XRWebGLLayer created and set.");
+
+        // Request 'local-floor' space for 6DoF height
+        session.requestReferenceSpace('local-floor').then((refSpace) => {
+          console.log("enterXR: Got local-floor reference space.");
+          this._baseRefSpace = refSpace;
+
+          // If the slider has a value, apply it
+          this.updateVROffsets();
+
+          this._logThrottle = 0;
+          session.requestAnimationFrame(this.onXRFrame.bind(this));
+        });
+      } catch (e) {
+        console.error("enterXR Critical Error:", e);
+      }
+    }).catch((err) => {
+      console.error("enterXR: makeXRCompatible failed!", err);
+    });
+
+    this._preventRender = true;
+  }
+
+  updateVROffsets() {
+    if (!this._baseRefSpace) return;
+
+    const sliderZ = document.getElementById('offsetZ');
+    const valZ = sliderZ ? parseFloat(sliderZ.value) : 0.4;
+
+    const sliderY = document.getElementById('offsetY');
+    const valY = sliderY ? parseFloat(sliderY.value) : -1.2;
+
+    // We want to move the "origin" relative to the user.
+    // Using simple offset on Y and Z.
+    // XRRigidTransform(position, orientation)
+    // To move scene UP, we shift reference space DOWN?
+    // Or we shift origin... let's try direct translation.
+    // If I want the scene to be HIGHER, I need the floor to be lower relative to me?
+    // Actually, usually negative Y moves the reference space down (so I feel higher).
+    // Positive Y moves reference space up (so I feel lower).
+    // Let's assume Y slider = "Scene Height".
+    // If I increase Y, scene goes up.
+
+    // Reference Space Offset:
+    // "result = base * offset" ?
+    // "viewer_in_base = viewer_in_offset * offset_inverse" ?
+    // Documentation says: getOffsetReferenceSpace(originOffset)
+    // "Creates a new reference space where the origin is offset from the created reference space by the specified transformation."
+    // origin_new = origin_old * transform
+
+    // Let's just try mapping directly.
+    // offsetZ moves Forward/Back?
+    // offsetY moves Up/Down.
+
+    const offset = new XRRigidTransform({ x: 0, y: -valY, z: -valZ });
+    // Negating because usually we think "Move Scene Back" (negative Z) or "Move Scene Down" (negative Y)
+    // But let's verify behavior. Z=0.5 was "lift scene"?
+    // User said "sphere is too low below me". So they want to lift scene (Y+).
+    // If valY is positive, and we use -valY, origin moves DOWN.
+    // Which means viewer (at 0) is relatively HIGHER.
+    // Wait. If Origin moves DOWN, then content (at Origin) moves DOWN.
+    // So to lift scene, we need Positive Y offset?
+    // Let's stick to -valY and see. If slider is "Height", maybe we want +valY.
+    // I'll assume slider is "Viewer Height".
+    // If I increase "Viewer Height", I go UP, scene goes DOWN.
+    // So -valY makes sense for "Viewer Height".
+
+    this._xrRefSpace = this._baseRefSpace.getOffsetReferenceSpace(offset);
+
+    // Apply accumulated world nav
+    if (this._xrWorldOffset) {
+      // Compose offsets? 
+      // We want: Base -> InitialOffset -> WorldNav
+      // But getOffsetReferenceSpace takes an XRRigidTransform.
+      // We can chain them.
+      this._xrRefSpace = this._xrRefSpace.getOffsetReferenceSpace(this._xrWorldOffset);
+    }
+  }
+
+  moveWorld(delta) {
+    if (!this._baseRefSpace) return;
+
+    // Delta is vec3 [dx, dy, dz] in World Space.
+    // We want to move World by Delta.
+    // E.g. pulling world towards me (+Z).
+    // Means RefSpace Origin moves +Z.
+
+    // We need to ACCUMULATE this delta into a transform.
+    if (!this._xrWorldOffset) {
+      this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: 0 });
+    }
+
+    // Current position
+    let pos = this._xrWorldOffset.position;
+
+    // Create new position
+    // NOTE: transform.position is ReadOnly usually.
+    // We must create a new transform.
+
+    let newPos = {
+      x: pos.x + delta[0],
+      y: pos.y + delta[1],
+      z: pos.z + delta[2],
+      w: 1.0 // not needed for dict
+    };
+
+    this._xrWorldOffset = new XRRigidTransform(newPos, this._xrWorldOffset.orientation);
+
+    // Re-apply
+    this.updateVROffsets();
+  }
+
+  onXREnd() {
+    this._xrSession = null;
+    this._xrRefSpace = null;
+    this._preventRender = false;
+
+    this._vrControllerLeft = null;
+    this._vrControllerRight = null;
+    this.initVRControllers();
+
+    this.render();
+  }
+
+  initVRControllers() {
+    // Simple 5cm cube for controllers
+    var gl = this._gl;
+    if (!gl) return; // Wait for GL
+
+    // Helper to make a mesh
+    const makeCtrl = (color) => {
+      var mesh = new Multimesh(Primitives.createCube(gl));
+      mesh.normalizeSize();
+      // Start Hidden (Scale 0)
+      mat4.scale(mesh.getMatrix(), mat4.create(), [0.0, 0.0, 0.0]);
+
+      mesh.setShaderType(Enums.Shader.FLAT);
+      mesh.setFlatColor(color);
+      mesh.init();
+      mesh.initRender();
+      return mesh;
+    };
+
+    if (Primitives) {
+      this._vrControllerLeft = makeCtrl([0.0, 1.0, 0.0]); // GREEN
+      this._vrControllerRight = makeCtrl([0.0, 0.0, 1.0]); // BLUE
+    }
+  }
+
+  updateVRControllerPose(handedness, position, orientation) {
+    var mesh = handedness === 'left' ? this._vrControllerLeft : this._vrControllerRight;
+    if (!mesh) return;
+
+    var mat = mesh.getMatrix();
+    mat4.fromRotationTranslation(mat, orientation, position);
+
+    // Cube at exact anchor
+    mat4.scale(mat, mat, [0.02, 0.02, 0.02]);
+  }
+
+  initDebugCursor() {
+    var gl = this._gl;
+    if (!gl) return;
+
+    this._debugCursor = new Multimesh(Primitives.createCube(gl));
+    this._debugCursor.normalizeSize();
+
+    // Initialize "in the abyss" to prevent initial visual glitch
+    mat4.translate(this._debugCursor.getMatrix(), mat4.create(), [0, -9999, 0]);
+    this._debugCursor.setVisible(false);
+
+    this._debugCursor.setShaderType(Enums.Shader.FLAT);
+    this._debugCursor.setFlatColor([1.0, 1.0, 0.0]); // YELLOW
+
+    this._debugCursor.init();
+    this._debugCursor.initRender();
+  }
+
+  updateDebugCursor(pos, active) {
+    if (!this._debugCursor) this.initDebugCursor();
+    if (!this._debugCursor) return;
+
+    if (active && pos) {
+      if (!this._debugCursor.isVisible()) {
+        console.log("showing debug cursor");
+        this._debugCursor.setVisible(true);
+      }
+      var mat = this._debugCursor.getMatrix();
+      mat4.identity(mat);
+      mat4.translate(mat, mat, pos);
+      mat4.scale(mat, mat, [0.01, 0.01, 0.01]);
+    } else {
+      if (this._debugCursor.isVisible()) {
+        this._debugCursor.setVisible(false);
+      }
+    }
+  }
+
+  _drawSceneVR() {
+    var gl = this._gl;
+    gl.enable(gl.DEPTH_TEST);
+
+    // grid
+    if (this._showGrid) this._grid.render(this);
+
+    // VR Controllers
+    if (this._vrControllerLeft) this._vrControllerLeft.render(this);
+    if (this._vrControllerRight) this._vrControllerRight.render(this);
+
+    // Debug Cursor
+    if (this._debugCursor && this._debugCursor.isVisible()) this._debugCursor.render(this);
+
+    // Meshes
+    // Just render opaque meshes for now
+    var meshes = this._meshes;
+    for (var i = 0, l = meshes.length; i < l; ++i) {
+      if (!meshes[i].isVisible()) continue;
+      meshes[i].render(this);
+    }
+  }
+
+  onXRFrame(time, frame) {
+    const session = frame.session;
+    session.requestAnimationFrame(this.onXRFrame.bind(this));
+
+    const pose = frame.getViewerPose(this._xrRefSpace);
+    if (pose) {
+      const gl = this._gl;
+      const glLayer = session.renderState.baseLayer;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+      // Handle Input (PoC placeholder)
+      if (typeof this.handleXRInput === 'function') {
+        try {
+          this.handleXRInput(frame, this._xrRefSpace);
+        } catch (e) {
+          console.error("XR Input Error:", e);
+        }
+      }
+
+      // Render to WebXR framebuffer
+      this.renderVR(glLayer, pose);
+    }
+  }
 }
+
+
 
 export default Scene;

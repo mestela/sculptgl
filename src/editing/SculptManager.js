@@ -7,7 +7,7 @@ class SculptManager {
   constructor(main) {
     this._main = main;
 
-    this._toolIndex = Enums.Tools.BRUSH; // sculpting mode
+    this._toolIndex = Enums.Tools.DRAG; // Force DRAG
     this._tools = []; // the sculpting tools
 
     // symmetry stuffs
@@ -95,6 +95,12 @@ class SculptManager {
     if (this.isUsingContinuous())
       return;
     this.getCurrentTool().update();
+  }
+
+  updateXR(picking) {
+    if (this._tools[this._toolIndex].updateXR) {
+      this._tools[this._toolIndex].updateXR(picking);
+    }
   }
 
   postRender() {

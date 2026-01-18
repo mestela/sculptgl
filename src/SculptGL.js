@@ -1,5 +1,5 @@
 import 'misc/Polyfill';
-import { vec3 } from 'gl-matrix';
+import { vec3, mat4 } from 'gl-matrix';
 import { Manager as HammerManager, Pan, Pinch, Tap } from 'hammerjs';
 import Tablet from 'misc/Tablet';
 import Enums from 'misc/Enums';
@@ -35,6 +35,15 @@ class SculptGL extends Scene {
     this._maskX = 0;
     this._maskY = 0;
     this._hammer = new HammerManager(this._canvas);
+    this.handleXRInput = this.handleXRInput.bind(this); // Wire up VR input
+    this.onXRFrame = this.onXRFrame.bind(this);
+
+    // VR Interaction State
+    this._vrGrip = {
+      right: { active: false, startPoint: vec3.create(), startFrame: null },
+      left: { active: false, startPoint: vec3.create(), startFrame: null }
+    };
+    this._vrWorldMatrix = mat4.create(); // To track accumulated world transform
 
     this._eventProxy = {};
 
@@ -504,6 +513,177 @@ class SculptGL extends Scene {
     this._lastMouseX = mouseX;
     this._lastMouseY = mouseY;
     this.renderSelectOverRtt();
+  }
+
+  // WebXR Support
+  enterXR(session) {
+    super.enterXR(session);
+    session.addEventListener('selectstart', this.onXRSelectStart.bind(this));
+    session.addEventListener('selectend', this.onXRSelectEnd.bind(this));
+  }
+
+  onXRSelectStart(event) {
+    // Determine active hand? For now allow both to trigger.
+    if (event.inputSource.targetRaySpace) {
+      this._sculptManager.start(false);
+      this._action = Enums.Action.SCULPT_EDIT;
+    }
+  }
+
+  onXRSelectEnd(event) {
+    if (event.inputSource.targetRaySpace) {
+      this._sculptManager.end();
+      this._action = Enums.Action.NOTHING;
+    }
+  }
+
+  handleXRInput(frame, refSpace) {
+    const session = frame.session;
+    const sources = session.inputSources;
+
+    // Iterate ALL sources to handle Dual Input
+    for (const source of sources) {
+      if (!source.gripSpace) continue;
+
+      // Update Visuals for this hand
+      const gPose = frame.getPose(source.gripSpace, refSpace);
+      if (gPose) {
+        this.updateVRControllerPose(source.handedness,
+          [gPose.transform.position.x, gPose.transform.position.y, gPose.transform.position.z],
+          [gPose.transform.orientation.x, gPose.transform.orientation.y, gPose.transform.orientation.z, gPose.transform.orientation.w]
+        );
+      }
+
+      if (!source.targetRaySpace) continue;
+
+      // 1. Navigation (Grip) - Independent per hand
+      this.processVRGrip(source, frame, refSpace);
+
+      // 2. Sculpting (Trigger) - Swappable active hand
+      // Check if trigger is pressed to "claim" dominance
+      const buttons = source.gamepad ? source.gamepad.buttons : [];
+      if (buttons[0] && buttons[0].pressed) {
+        if (this._activeHandedness !== source.handedness) {
+          this._activeHandedness = source.handedness;
+          // console.log("Switched active hand to: " + source.handedness);
+        }
+      }
+
+      // If this is the active hand, run picking/sculpting
+      if (source.handedness === this._activeHandedness) {
+        this.processVRSculpting(source, frame, refSpace);
+      }
+    }
+  }
+
+  processVRGrip(source, frame, refSpace) {
+    const buttons = source.gamepad ? source.gamepad.buttons : [];
+    const isGripPressed = buttons[1] && buttons[1].pressed;
+
+    if (!this._vrGrip[source.handedness]) return;
+    let gState = this._vrGrip[source.handedness];
+
+    const space = source.gripSpace;
+    const pose = frame.getPose(space, refSpace);
+    if (!pose) return;
+
+    const origin = [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z];
+
+    if (isGripPressed) {
+      if (!gState.active) {
+        // Start Grip
+        gState.active = true;
+        vec3.copy(gState.startPoint, origin);
+      } else {
+        // Continue Grip -> Move World
+        var delta = vec3.create();
+        vec3.sub(delta, origin, gState.startPoint);
+
+        if (vec3.len(delta) > 0.0001) {
+          // Move World
+          this.moveWorld([delta[0], delta[1], delta[2]]);
+          // Reset start point to current (incremental)
+          vec3.copy(gState.startPoint, origin);
+        }
+      }
+    } else {
+      if (gState.active) gState.active = false;
+    }
+  }
+
+  processVRSculpting(source, frame, refSpace) {
+    const space = source.gripSpace;
+    const pose = frame.getPose(space, refSpace);
+    if (!pose) return;
+
+    const origin = [pose.transform.position.x, pose.transform.position.y, pose.transform.position.z];
+    this._vrControllerPos = origin;
+
+    // Direction
+    const quatRot = [pose.transform.orientation.x, pose.transform.orientation.y, pose.transform.orientation.z, pose.transform.orientation.w];
+    const direction = [0, 0, -1];
+    vec3.transformQuat(direction, direction, quatRot);
+    vec3.normalize(direction, direction);
+
+    // Picking
+    let picked = this._picking.intersectionSphereMeshes(this._meshes, origin, 0.05);
+    // if (!picked) {
+    //   picked = this._picking.intersectionRayMeshes(this._meshes, origin, direction);
+    // }
+
+    if (picked) {
+      this._picking._rWorld2 = 0.05 * 0.05;
+      const mesh = this._picking.getMesh();
+      if (mesh) {
+        this._picking._rLocal2 = this._picking._rWorld2 / mesh.getScale2();
+        const localInter = this._picking.getIntersectionPoint();
+        const worldInter = vec3.create();
+        vec3.transformMat4(worldInter, localInter, mesh.getMatrix());
+
+        // Log
+        if (!this._logThrottle) this._logThrottle = 0;
+        if (this._logThrottle++ % 60 === 0) console.log("VR Pick", worldInter);
+
+        if (vec3.len(worldInter) > 0.001) {
+          if (this.updateDebugCursor) this.updateDebugCursor(worldInter, true);
+        } else {
+          if (this.updateDebugCursor) this.updateDebugCursor(null, false);
+        }
+      }
+
+      // Handle Trigger State for Sculpting
+      const buttons = source.gamepad ? source.gamepad.buttons : [];
+      const isTriggerPressed = buttons[0] && buttons[0].pressed;
+
+      if (isTriggerPressed) {
+        if (!this._vrSculpting) {
+          this._vrSculpting = true;
+          this._sculptManager.start(false);
+          this._action = Enums.Action.SCULPT_EDIT;
+        }
+        this._sculptManager.preUpdate(); // Update position/pressure
+        this._sculptManager.update();    // Perform stroke
+      } else {
+        if (this._vrSculpting) {
+          this._vrSculpting = false;
+          this._sculptManager.end();
+        }
+        this._sculptManager.preUpdate(); // Just update cursor pos
+      }
+
+    } else {
+      // Not picking
+      if (this._vrSculpting) {
+        // If we were sculpting but lost tracking/surface?
+        // End stroke?
+        // For now just keep it active or force end?
+        // Standard behavior: if you go off mesh, stroke ends or holds last pos.
+        // Let's force end to be safe.
+        this._vrSculpting = false;
+        this._sculptManager.end();
+      }
+      if (this.updateDebugCursor) this.updateDebugCursor(null, false);
+    }
   }
 }
 

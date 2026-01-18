@@ -58,7 +58,9 @@ ShaderBase.strings.fragColorFunction = [
   '  col *= (0.3 + 0.7 * vMasking);',
   '  if(uSym == 1 && abs(dot(uPlaneN, vVertex - uPlaneO)) < 0.15)',
   '      col = min(col * 1.5, 1.0);',
-  '  return alpha != 1.0 ? vec4(col * alpha, alpha) : encodeRGBM(col);',
+  '  float noise = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233))) * 43758.5453);',
+  '  col += (noise - 0.5) / 255.0;',
+  '  return alpha != 1.0 ? vec4(col * alpha, alpha) : vec4(linearTosRGB(col), 1.0);',
   '}'
 ].join('\n');
 

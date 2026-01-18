@@ -19,6 +19,65 @@ class Drag extends SculptBase {
     var picking = main.getPicking();
     var pickingSym = main.getSculptManager().getSymmetry() ? main.getPickingSymmetry() : null;
 
+    if (main._xrSession && main._vrControllerPos && this._lastVRPos) {
+      // VR DRAG LOGIC
+      // Calculate Delta in World Space
+      // Calculate Delta in World Space
+      var deltaWorld = vec3.create();
+      vec3.sub(deltaWorld, main._vrControllerPos, this._lastVRPos);
+
+      // Transform to Mesh Local Space
+      // LocalDelta = InverseWorldMatrix * WorldDelta?
+      // Actually, Delta is a Vector, not a Point. So only Rotation/Scale matters, not Translation.
+      // mat4.invert(invMat, mesh.getMatrix());
+      // vec3.transformMat4(localDelta, deltaWorld, invMat); -- wait, transformMat4 applies translation too if w=1.
+      // For direction vector, w=0.
+
+      var invMat = mat4.create();
+      mat4.invert(invMat, mesh.getMatrix());
+
+      // Transform as vector (ignore translation)
+      // vec3.transformMat4 with vector interpretation?
+      // Or manually 3x3 mult.
+      // gl-matrix doesn't have transformVec3?
+      // We can just use transformMat4 but set w=0 implicitly? No, function assumes point.
+
+      // Workaround: Transform (0,0,0) and (dx,dy,dz) and subtract?
+      // Or just extract rotation/scale from invMat.
+
+      // Vector transformation:
+      var zero = [0, 0, 0];
+      var localZero = [0, 0, 0];
+      var localHead = [0, 0, 0];
+      vec3.transformMat4(localZero, zero, invMat);
+      vec3.transformMat4(localHead, deltaWorld, invMat);
+      vec3.sub(this._dragDir, localHead, localZero);
+
+      // Update Picking Center (Move the brush)
+      vec3.add(picking.getIntersectionPoint(), picking.getIntersectionPoint(), this._dragDir);
+
+      // Repick vertices at new center
+      picking._mesh = mesh; // CRITICAL FIX: Ensure picking knows which mesh to use
+      picking.updateLocalAndWorldRadius2();
+      picking.pickVerticesInSphere(picking.getLocalRadius2());
+      picking.computePickedNormal();
+
+      // Apply
+      this.stroke(picking, false);
+      if (pickingSym) {
+        // Symmetry? mirror the delta?
+        // Drag.js usually calculates sym dir separately.
+        // For now, simple mirror of local dir?
+        vec3.copy(this._dragDirSym, this._dragDir);
+        Geometry.mirrorPoint(this._dragDirSym, [0, 0, 0], mesh.getSymmetryNormal()); // Reflect vector
+        this.stroke(pickingSym, true);
+      }
+
+      this.updateRender();
+      vec3.copy(this._lastVRPos, main._vrControllerPos);
+      return;
+    }
+
     var dx = main._mouseX - this._lastMouseX;
     var dy = main._mouseY - this._lastMouseY;
     var dist = Math.sqrt(dx * dx + dy * dy);
