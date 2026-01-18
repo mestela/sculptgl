@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang='en'>
+
+<head>
+    <meta charset='utf-8' />
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>SculptGL WebXR PoC</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #333;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        #vr-button {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 999;
+        }
+
+        #log {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: lime;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 5px;
+            pointer-events: auto;
+            user-select: text;
+            max-height: 50%;
+            overflow: auto;
+            z-index: 1000;
+            white-space: pre-wrap;
+        }
+    </style>
+
+    <script type="importmap">
+  {
+    "imports": {
+      "gl-matrix": "./lib/gl-matrix-wrapper.js",
+      "hammerjs": "./lib/hammer-wrapper.js",
+      "yagui": "./lib/yagui.js",
+      "file-saver": "./lib/file-saver-wrapper.js",
+      "zip": "./lib/zip-wrapper.js",
+      "sketchfab-oauth2-1.2.0": "./lib/sketchfab-wrapper.js",
+      
+      "misc/": "./src/misc/",
+      "math3d/": "./src/math3d/",
+      "gui/": "./src/gui/",
+      "editor/": "./src/editor/",
+      "editing/": "./src/editing/",
+      "files/": "./src/files/",
+      "mesh/": "./src/mesh/",
+      "render/": "./src/render/",
+      "states/": "./src/states/",
+      "drawables/": "./src/drawables/",
+      
+      "Scene": "./src/Scene.js?v=simple1",
+      "SculptGL": "./src/SculptGL.js",
+      "SculptGL": "./src/SculptGL.js"
+    }
+  }
+  </script>
+</head>
+
+<body>
+    <button id="vr-button">Enter VR</button>
+
+    <div id="log"></div>
+    <div id="viewport">
+        <canvas id='canvas'></canvas>
+    </div>
+
+    <!-- Hidden inputs expected by SculptGL -->
+    <input type='file' id='fileopen' multiple style='display: none' />
+    <input type='file' id='backgroundopen' style='display: none' />
+    <input type='file' id='alphaopen' style='display: none' />
+    <input type='file' id='textureopen' style='display: none' />
+    <input type='file' id='matcapopen' style='display: none' />
+
+    <script type="module">
+        // Move execution to window.onload to ensure logDiv exists
+        window.onload = async function () {
+            // Overlay Logger
+            const logDiv = document.getElementById('log');
+            function screenLog(msg, color = 'lime') {
+                logDiv.innerHTML += `<span style="color:${color}">${msg}</span><br>`;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+
+            // Wrap console
+            const cls = console.log;
+            const cerr = console.error;
+            const cwarn = console.warn;
+
+            console.log = (...args) => { cls(...args); screenLog(args.join(' ')); };
+            console.error = (...args) => { cerr(...args); screenLog(args.join(' '), 'red'); };
+            console.warn = (...args) => { cwarn(...args); screenLog(args.join(' '), 'orange'); };
+
+            console.log("Initializing SculptGL for WebXR...");
+            const APP_VERSION = "v0.3.34 (Flip Y)";
+            console.log("VERSION: " + APP_VERSION);
+
+            // Check HTTPS
+            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+                console.warn("WebXR requires HTTPS or localhost!");
+                console.warn("Current: " + location.href);
+            }
+
+            try {
+                // Dynamic import to catch module errors
+                const module = await import('SculptGL');
+                const SculptGL = module.default;
+
+                const app = new SculptGL();
+                app.start();
+                window.app = app; // For debugging
+                console.log("SculptGL started successfully.");
+            } catch (e) {
+                console.error("CRITICAL: Failed to load SculptGL module:", e);
+                console.error(e.message);
+                return;
+            }
+
+            // VR Button Logic
+            const btn = document.getElementById('vr-button');
+            if ('xr' in navigator) {
+                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+                    if (supported) {
+                        btn.addEventListener('click', onEnterVR);
+                    } else {
+                        btn.disabled = true;
+                        btn.textContent = 'VR Not Supported';
+                    }
+                });
+            } else {
+                btn.style.display = 'none';
+            }
+
+
+
+            async function onEnterVR() {
+                try {
+                    // Request session with local-floor
+                    // Note: local-floor is required for 6DoF height, but some devices might support it as optional
+                    const session = await navigator.xr.requestSession('immersive-vr', {
+                        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
+                    }); if (app.enterXR) {
+                        app.enterXR(session);
+                    } else {
+                        console.warn("enterXR not implemented on SculptGL instance yet.");
+                    }
+                } catch (e) {
+                    console.error("Failed to start VR", e);
+                }
+            }
+        };
+    </script>
+</body>
+
+</html>
