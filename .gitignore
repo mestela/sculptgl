@@ -16,4 +16,12 @@ tools/dist
 
 # Deployment
 .last_deployed*
-deploy_beta.sh
+deploy*.sh
+
+# Internal / Local
+handover_prompt*.md
+mac_proxy.py
+project_rules.md
+walkthrough.md
+ngrok*
+*.sublime-project
