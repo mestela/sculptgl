@@ -18,6 +18,8 @@ import Rtt from 'drawables/Rtt';
 import ShaderLib from 'render/ShaderLib';
 import MeshStatic from 'mesh/meshStatic/MeshStatic';
 import WebGLCaps from 'render/WebGLCaps';
+import GuiXR from 'gui/GuiXR';
+import VRMenu from 'drawables/VRMenu';
 
 class Scene {
 
@@ -95,6 +97,12 @@ class Scene {
       prevDist: 0.0,
       prevVec: vec3.create()
     };
+
+    // VR Menu State
+    this._guiXR = null;
+    this._vrMenu = null;
+    this._vrPoseLeft = null;
+    this._vrPoseRight = null;
   }
 
   start() {
@@ -999,6 +1007,11 @@ class Scene {
       this._vrControllerRight = makeCtrl([0.0, 0.0, 1.0]); // BLUE
       if (window.screenLog) window.screenLog("Created Controllers: Left(Green), Right(Blue)", "lime");
     }
+
+    // Init VR Menu System
+    if (!this._guiXR) this._guiXR = new GuiXR(this);
+    this._guiXR.init(this._gl);
+    if (!this._vrMenu) this._vrMenu = new VRMenu(this._gl, this._guiXR);
   }
 
   updateVRControllerPose(handedness, position, orientation) {
@@ -1196,10 +1209,42 @@ class Scene {
       const worldPose = frame.getPose(source.gripSpace, refSpace);
       if (worldPose) {
         this.updateVRControllerPose(source.handedness, worldPose.transform.position, worldPose.transform.orientation);
+
+        // Capture Unscaled Poses for Menu Attachment
+        const p = worldPose.transform.position;
+        const o = worldPose.transform.orientation;
+        const mat = mat4.create();
+        mat4.fromRotationTranslation(mat, [o.x, o.y, o.z, o.w], [p.x, p.y, p.z]);
+
+        if (source.handedness === 'left') this._vrPoseLeft = mat;
+        if (source.handedness === 'right') this._vrPoseRight = mat;
       }
 
-      // 2. Menu Raycasting (Right Hand Only) - TODO: Port VRMenu
-      // if (source.handedness === 'right' && source.targetRaySpace) { ... }
+      // 2. Menu Raycasting (Right Hand Only)
+      if (source.handedness === 'right' && source.targetRaySpace) {
+        const rayPose = frame.getPose(source.targetRaySpace, refSpace);
+        if (rayPose && this._vrMenu) {
+          const mat = rayPose.transform.matrix;
+          // Extract Origin and Direction from Ray Matrix
+          // Origin is translation (12,13,14)
+          const origin = vec3.fromValues(mat[12], mat[13], mat[14]);
+          // Direction is -Z column (8,9,10) ? WebXR ray usually points down -Z.
+          const dir = vec3.fromValues(-mat[8], -mat[9], -mat[10]);
+          vec3.normalize(dir, dir);
+
+          const hit = this._vrMenu.intersect(origin, dir);
+          if (hit) {
+            this._guiXR.setCursor(hit.uv[0], hit.uv[1]);
+
+            // Interact if Trigger Pressed (Button 0)
+            if (source.gamepad && source.gamepad.buttons[0]) {
+              this._guiXR.onInteract(hit.uv[0], hit.uv[1], source.gamepad.buttons[0].pressed);
+            }
+          } else {
+            this._guiXR.setCursor(-1, -1);
+          }
+        }
+      }
 
     // 3. Navigation Data (Base Space - Stable coordinates)
     if (this._baseRefSpace) {
