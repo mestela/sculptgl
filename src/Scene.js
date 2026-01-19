@@ -384,6 +384,16 @@ class Scene {
         meshes[i].render(this);
       }
       
+      // Wireframe (Pass 2)
+      gl.enable(gl.BLEND);
+      gl.depthFunc(gl.LESS);
+      for (let i = 0, l = meshes.length; i < l; ++i) {
+        if (meshes[i].getShowWireframe())
+          meshes[i].renderWireframe(this);
+      }
+      gl.depthFunc(gl.LEQUAL);
+      gl.disable(gl.BLEND);
+
       // Debug Cursor (Pass 2 - Scaled Model Space)
       if (this._debugCursor && this._debugCursor.isVisible()) {
          this._debugCursor.updateMatrices(cam);
