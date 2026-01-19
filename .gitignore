@@ -13,3 +13,7 @@ node_modules
 *.hdr
 tools/*.png
 tools/dist
+
+# Deployment
+.last_deployed*
+deploy_beta.sh
