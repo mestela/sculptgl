@@ -57,34 +57,33 @@ ShaderMatcap.vertex = [
   'attribute vec3 aColor;',
   'attribute vec3 aMaterial;',
   ShaderBase.strings.vertUniforms,
-  'varying vec3 vVertex;',
+  'varying highp vec3 vVertex;',
   'varying vec3 vNormal;',
   'varying vec3 vColor;',
   'varying float vMasking;',
-  'varying vec3 vVertexPres;',
+  'varying highp vec3 vVertexPres;',
   'uniform vec3 uAlbedo;',
   'void main() {',
   '  vColor = uAlbedo.x >= 0.0 ? uAlbedo : aColor;',
   '  vMasking = aMaterial.z;',
-  '  vNormal = mix(aNormal, uEN * aNormal, vMasking);',
-  '  vNormal = normalize(uN * vNormal);',
+  // Fix for High Scale Lighting Precision: Use MV rotation instead of Normal Matrix (InvTrans)
+  // This assumes Uniform Scale (VR World Scale is uniform).
+  // Prevents uN becoming tiny when Scale is huge.
+  '  vNormal = mix(aNormal, (mat3(uMV) * aNormal), vMasking);',
+  '  vNormal = normalize(vNormal);', // removed uN
   '  vec4 vertex4 = vec4(aVertex, 1.0);',
   '  vertex4 = mix(vertex4, uEM * vertex4, vMasking);',
   '  vVertex = vec3(uMV * vertex4);',
-  // annoying stuffs : on mobile + with ortho matrix 
-  // there's a precision issue with vVertex lerp between VS and FS
-  // it is caused by the big ortho z translation factor, one solutions
-  // is to use highp, one another to compute the matcap UV in the VS (but 
-  // no flat shading in that case)
-  '  vVertexPres = vVertex / max(1.0, abs(uMV[3][2]));',
+  '  vVertexPres = vVertex;', // Optimized: VR uses Perspective, skip Ortho hacks
   '  gl_Position = uMVP * vertex4;',
   '}'
 ].join('\n');
 
 ShaderMatcap.fragment = [
+  'precision highp float;', // Fix for solarization/overflow artifacts
   'uniform sampler2D uTexture0;',
-  'varying vec3 vVertex;',
-  'varying vec3 vVertexPres;',
+  'varying highp vec3 vVertex;',
+  'varying highp vec3 vVertexPres;',
   'varying vec3 vNormal;',
   'varying vec3 vColor;',
   'uniform float uAlpha;',
@@ -92,10 +91,17 @@ ShaderMatcap.fragment = [
   ShaderBase.strings.fragColorFunction,
   'void main() {',
   '  vec3 normal = getNormal();',
-  '  vec3 nm_z = normalize(vVertexPres);',
-  '  vec3 nm_x = vec3(-nm_z.z, 0.0, nm_z.x);',
-  '  vec3 nm_y = cross(nm_x, nm_z);',
-  '  vec2 texCoord = 0.5 + 0.5 * vec2(dot(normal, nm_x), dot(normal, nm_y));',
+  '  vec3 nm_z = normalize(vVertexPres);', // View Direction
+  '  vec3 nm_x = vec3(-nm_z.z, 0.0, nm_z.x);', // Old logic... wait.
+  // Standard Matcap is much simpler:
+  // vec2 texCoord = normal.xy * 0.5 + 0.5; (If normal is View Space)
+  // But our 'normal' is World Space (technically ModelView is applied).
+  // uMV is View Matrix * Model Matrix.
+  // So 'vNormal' is in View Space.
+  // So standard mapping is just:
+  '  vec2 texCoord = normal.xy * 0.5 + 0.5;',
+  '  // Flip Y if needed (usually textures are flipped)',
+  '  texCoord.y = 1.0 - texCoord.y;', 
   '  vec3 color = sRGBToLinear(texture2D(uTexture0, texCoord).rgb) * sRGBToLinear(vColor);',
   '  gl_FragColor = encodeFragColor(color, uAlpha);',
   '}'

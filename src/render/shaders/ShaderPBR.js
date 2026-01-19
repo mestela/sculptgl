@@ -72,7 +72,7 @@ ShaderPBR.vertex = [
   '  vMetallic = uMetallic >= 0.0 ? uMetallic : aMaterial.y;',
   '  vMasking = aMaterial.z;',
   '  vNormal = mix(aNormal, uEN * aNormal, vMasking);',
-  '  vNormal = normalize(uN * vNormal);',
+  '  vNormal = normalize(mat3(uMV) * vNormal);',
   '  vec4 vertex4 = vec4(aVertex, 1.0);',
   '  vertex4 = mix(vertex4, uEM * vertex4, vMasking);',
   '  vVertex = vec3(uMV * vertex4);',
@@ -156,6 +156,14 @@ ShaderPBR.updateUniforms = function (mesh, main) {
   var uniforms = this.uniforms;
 
   mat3.fromMat4(uIBLTmp, main.getCamera().getView());
+  // Normalize rotation matrix to remove scale (fixes SH lighting artifacts on scale)
+  // Each column is a basis vector, normalize them.
+  var m = uIBLTmp;
+  var len;
+  len = Math.hypot(m[0], m[1], m[2]); if (len > 0) { m[0] /= len; m[1] /= len; m[2] /= len; }
+  len = Math.hypot(m[3], m[4], m[5]); if (len > 0) { m[3] /= len; m[4] /= len; m[5] /= len; }
+  len = Math.hypot(m[6], m[7], m[8]); if (len > 0) { m[6] /= len; m[7] /= len; m[8] /= len; }
+
   gl.uniformMatrix3fv(uniforms.uIblTransform, false, mat3.transpose(uIBLTmp, uIBLTmp));
 
   gl.uniform3fv(uniforms.uAlbedo, mesh.getAlbedo());

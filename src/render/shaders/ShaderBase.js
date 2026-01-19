@@ -169,7 +169,8 @@ ShaderBase.updateUniforms = (function () {
     gl.uniform1i(uniforms.uSym, useSym ? 1 : 0);
     gl.uniform1f(uniforms.uAlpha, mesh.getOpacity());
 
-    gl.uniform1f(uniforms.uCurvature, mesh.getCurvature());
+    gl.uniform1f(uniforms.uCurvature, 0.0); // DISABLED to fix lighting artifacts at scale
+    // gl.uniform1f(uniforms.uCurvature, mesh.getCurvature());
     var cam = main.getCamera();
     gl.uniform1f(uniforms.uFov, cam.isOrthographic() ? -Math.abs(cam._trans[2]) * 25.0 : cam.getFov());
   };

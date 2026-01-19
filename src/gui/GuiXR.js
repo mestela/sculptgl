@@ -37,6 +37,7 @@ class GuiXR {
       { type: 'button', id: Enums.Tools.MASKING, label: 'Mask', x: 130, y: 420, w: 100, h: 40 }
     ];
     this._cursor = { x: -1, y: -1, active: false };
+    this._radius = 0.5; // Expose for VR Scene
   }
 
   init(gl) {
@@ -86,7 +87,10 @@ class GuiXR {
           if (this._main && (now - this._lastCallback > 30)) {
             this._lastCallback = now;
             // Explicit lightweight setters to avoid lag
-            if (w.id === 'radius') this._main.getSculptManager().getTool().setRadius(val * 100);
+            if (w.id === 'radius') {
+              this._radius = val;
+              this._main.getSculptManager().getTool().setRadius(val * 100);
+            }
             if (w.id === 'intensity') this._main.getSculptManager().getTool().setIntensity(val);
           }
         } else if (w.type === 'button') {

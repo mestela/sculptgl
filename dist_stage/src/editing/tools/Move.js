@@ -171,6 +171,44 @@ class Move extends SculptBase {
     vec3.sub(eyeDir, vFar, vNear);
     vec3.normalize(eyeDir, eyeDir);
   }
+
+  sculptStrokeXR(picking) {
+    if (!this._lastVRPos) return; // Should be set in SculptBase.start
+
+    const main = this._main;
+    const currentPos = main._vrControllerPos; // Set in Scene.js processVRSculpting
+
+    if (!currentPos) return;
+
+    // Reset vertices to proxy (original positions) before applying new delta
+    this.copyVerticesProxy(picking, this._moveData);
+
+    // Calculate delta vector (Current - Start)
+    // Move.js applies this delta to the original vertex positions (vProxy)
+    // So 'dir' is an absolute offset from the start.
+
+    // We update _moveData.dir
+    const moveData = this._moveData;
+    vec3.sub(moveData.dir, currentPos, this._lastVRPos);
+
+    // VR Scale Correction:
+    // The delta is ALREADY in Model Space (from Scene.js).
+    // So we do NOT need to scale it again.
+    // vec3.scale(moveData.dir, moveData.dir, 1.0 / scale); <--- REMOVED
+
+
+    // Perform the move
+    // We use picking.getPickedVertices() which was set at start (and shouldn't change for Move tool?)
+    // Actually Move tool drags the same vertices.
+    this.move(picking.getPickedVertices(), moveData.center, picking.getLocalRadius2(), moveData, picking);
+
+    // Symmetry?
+    // if (useSym) ... (Skipping for now to keep it simple and safe)
+
+    var mesh = this.getMesh();
+    mesh.updateGeometry(mesh.getFacesFromVertices(picking.getPickedVertices()), picking.getPickedVertices());
+    this.updateRender();
+  }
 }
 
 export default Move;

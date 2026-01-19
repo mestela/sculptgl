@@ -172,12 +172,12 @@ class VRMenu {
     if (!this._logThrottle) this._logThrottle = 0;
     if (this._logThrottle++ > 180) { // ~3 seconds
       this._logThrottle = 0;
-      console.log("VRMenu Render:",
-        "MVP Pos (XYZW):",
-        this._cacheMVP[12].toFixed(3),
-        this._cacheMVP[13].toFixed(3),
-        this._cacheMVP[14].toFixed(3),
-        this._cacheMVP[15].toFixed(3),
+      // console.log("VRMenu Render:",
+      //   "MVP Pos (XYZW):",
+      //   this._cacheMVP[12].toFixed(3),
+      //   this._cacheMVP[13].toFixed(3),
+      //   this._cacheMVP[14].toFixed(3),
+      //   this._cacheMVP[15].toFixed(3),
         "Texture:", this._guiXR.getTexture() ? "Valid" : "INT-NULL",
         "Cull:", this._gl.getParameter(this._gl.CULL_FACE),
         "Depth:", this._gl.getParameter(this._gl.DEPTH_TEST)

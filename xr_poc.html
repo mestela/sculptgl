@@ -183,12 +183,12 @@
       "drawables/Rtt": "./src/drawables/Rtt.js",
       "drawables/Selection": "./src/drawables/Selection.js",
       "drawables/VRLaser": "./src/drawables/VRLaser.js",
-      "drawables/VRMenu": "./src/drawables/VRMenu.js?v=FIXED",
+      "drawables/VRMenu": "./src/drawables/VRMenu.js?v=0.3.68",
 
       "misc/": "./src/misc/",
       "math3d/": "./src/math3d/",
       "gui/": "./src/gui/",
-      "gui/GuiXR": "./src/gui/GuiXR.js?v=FIXED",
+      "gui/GuiXR": "./src/gui/GuiXR.js?v=0.3.68",
       "editor/": "./src/editor/",
       "editing/": "./src/editing/",
       "files/": "./src/files/",
@@ -204,8 +204,9 @@
       "render/shaders/glsl/outline.glsl": "./src/render/shaders/glsl/outline.glsl.js",
       "render/shaders/glsl/pbr.glsl": "./src/render/shaders/glsl/pbr.glsl.js",
       
-      "Scene": "./src/Scene.js?v=FIXED",
-      "SculptGL": "./src/SculptGL.js"
+      "Scene": "./src/Scene.js?v=0.4.32",
+      "SculptGL": "./src/SculptGL.js?v=0.4.32",
+      "render/shaders/ShaderBase.js": "./src/render/shaders/ShaderBase.js?v=0.4.32"
     }
   }
   </script>
@@ -226,28 +227,56 @@
     <input type='file' id='textureopen' style='display: none' />
     <input type='file' id='matcapopen' style='display: none' />
 
-    <script type="module">
-        // Move execution to window.onload to ensure logDiv exists
-        window.onload = async function () {
-            // Overlay Logger
+    <!-- GLOBAL ERROR HANDLER (Non-Module) -->
+    <script>
+        window.screenLog = (msg, color = 'white') => {
             const logDiv = document.getElementById('log');
-            function screenLog(msg, color = 'lime') {
-                logDiv.innerHTML += `<span style="color:${color}">${msg}</span><br>`;
+            if (logDiv) {
+                const line = document.createElement('div');
+                line.style.color = color;
+                line.textContent = msg;
+                logDiv.appendChild(line);
                 logDiv.scrollTop = logDiv.scrollHeight;
             }
+                                                                                                                                                                                                                                                                };
 
-            // Wrap console
+                                                                                                                                                                                                                                                                window.addEventListener('error', (event) => {
+                                                                                                                                                                                                                                                                    console.error("GLOBAL ERROR:", event.error);
+                                                                                                                                                                                                                                                                    if (window.screenLog) window.screenLog(`ERROR: ${event.message || event.error}`, 'red');
+                                                                                                                                                                                                                                                                });
+
+                                                                                                                                                                                                                                                                window.addEventListener('unhandledrejection', (event) => {
+                                                                                                                                                                                                                                                                    console.error("UNHANDLED REJECTION:", event.reason);
+                                                                                                                                                                                                                                                                    if (window.screenLog) window.screenLog(`PROMISE: ${event.reason}`, 'crimson');
+                                                                                                                                                                                                                                                                });
+                                                                                                                                                                                                                                                            </script>
+                                                                                                                                                                                                                                                        
+                                                                                                                                                                                                                                                        <script type="module">
+                                                                                                                                                                                                                                                            import Scene from 'Scene';
+                                                                                                                                                                                                                                                            import SculptGL from 'SculptGL';
+
+                                                                                                                                                                                                                                                            window.onload = async () => {
+                                                                                                                                                                                                                                                            // Reuse global screenLog
             const cls = console.log;
-            const cerr = console.error;
-            const cwarn = console.warn;
+                                                                                                                                                                                                                                                            const cerr = console.error;
 
-            console.log = (...args) => { cls(...args); screenLog(args.join(' ')); };
-            console.error = (...args) => { cerr(...args); screenLog(args.join(' '), 'red'); };
-            console.warn = (...args) => { cwarn(...args); screenLog(args.join(' '), 'orange'); };
+                                                                                                                                                                                                                                                            console.log = function (...args) {
+                                                                                                                                                                                                                                                                // Update on-screen log if available
+                                                                                                                                                                                                                                                                const logEl = document.getElementById('log');
+                                                                                                                                                                                                                                                                if (logEl) {
+                                                                                                                                                                                                                                                                    const line = document.createElement('div');
+                                                                                                                                                                                                                                                                    line.textContent = args.join(' ');
+                                                                                                                                                                                                                                                                    logEl.appendChild(line);
+                                                                                                                                                                                                                                                                    logEl.scrollTop = logEl.scrollHeight;
+                                                                                                                                                                                                                                                                }
+                                                                                                                                                                                                                                                                cls.apply(console, args);
+                                                                                                                                                                                                                                                            };
 
             console.log("Initializing SculptGL for WebXR...");
-            const APP_VERSION = "v0.3.62 - Passthrough & AR";
-            console.log("VERSION: " + APP_VERSION);
+
+
+                                                                                                                                                                                                                                                            // Show version on screen
+                                                                                                                                                                                                                                                            if (window.screenLog) window.screenLog("VERSION: v0.4.32 - CLEAN LOG", "lime");
 
             // Check HTTPS
             if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -257,6 +286,10 @@
 
             try {
                 // Dynamic import to catch module errors
+                // const module = await import('Scene'); // Only load Scene for now
+                // const SceneClass = module.default;
+
+                // const app = new SceneClass(); // Instantiate minimal Scene
                 const module = await import('SculptGL');
                 const SculptGL = module.default;
 

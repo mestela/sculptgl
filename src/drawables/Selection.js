@@ -174,8 +174,56 @@ class Selection {
     this._isEditMode = false;
   }
 
-  renderVR(main) {
-    // Prevent crash - logic to be implemented later
+  renderVR(main, camera, worldRadius) {
+    if (!main.getPicking().getMesh()) return;
+
+    // VR Specific Matrix Update
+    this._updateMatricesMeshVR(camera, main, worldRadius);
+
+    // Draw (No Transparency for now, just Red Ring)
+    vec3.set(this._color, 0.8, 0.0, 0.0);
+    ShaderLib[Enums.Shader.SELECTION].getOrCreate(this._gl).draw(this, true, false); // Draw Circle, no Sym for now
+  }
+
+  _updateMatricesMeshVR(camera, main, worldRadius) {
+    var picking = main.getPicking();
+    var mesh = picking.getMesh();
+
+    // 1. Get Surface Normal
+    picking.polyLerp(mesh.getNormals(), _TMP_AXIS);
+    vec3.transformMat3(_TMP_AXIS, _TMP_AXIS, mat3.normalFromMat4(_TMP_MAT, mesh.getMatrix()));
+    vec3.normalize(_TMP_AXIS, _TMP_AXIS);
+
+    // 2. Derive Orientation
+    // _BASE is [0,0,1]
+    var rad = Math.acos(vec3.dot(_BASE, _TMP_AXIS));
+    vec3.cross(_TMP_AXIS, _BASE, _TMP_AXIS);
+
+    if (vec3.length(_TMP_AXIS) < 0.00001) {
+      // Parallel, use X axis?
+      vec3.set(_TMP_AXIS, 1, 0, 0);
+    }
+
+    // 3. Build Model Matrix
+    mat4.identity(_TMP_MAT);
+    mat4.translate(_TMP_MAT, _TMP_MAT, vec3.transformMat4(_TMP_VEC, picking.getIntersectionPoint(), mesh.getMatrix()));
+    mat4.rotate(_TMP_MAT, _TMP_MAT, rad, _TMP_AXIS);
+
+    // 4. Compute MVP
+    // camera.getProjection() * camera.getView() ?
+    // Or camera.getPV() if available?
+    // Scene.js uses cam.getProjection() and cam.getView() typically.
+    // Let's compute PV manually to be safe or use getter
+    var pv = mat4.create();
+    mat4.mul(pv, camera.getProjection(), camera.getView());
+
+    // Circle MVP
+    mat4.scale(this._cacheCircleMVP, _TMP_MAT, [worldRadius, worldRadius, worldRadius]);
+    mat4.mul(this._cacheCircleMVP, pv, this._cacheCircleMVP);
+
+  // Dot MVP (optional, maybe skip dot in VR for now or make it small)
+  // mat4.scale(this._cacheDotMVP, _TMP_MAT, [worldRadius*0.1, worldRadius*0.1, worldRadius*0.1]);
+  // mat4.mul(this._cacheDotMVP, pv, this._cacheDotMVP);
   }
 }
 

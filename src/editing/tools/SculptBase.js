@@ -253,7 +253,10 @@ class SculptBase {
     // Use 3D distance from last intersection point
     // We assume picking.getIntersectionPoint() is valid (set by handleXRInput)
     var inter = picking.getIntersectionPoint(); // vec3
-    if (!inter) return;
+    if (!inter) {
+      if (window.screenLog && this._main._logThrottle % 60 === 0) window.screenLog("Sculpt: Lost Grip (No Inter)", "red");
+      return;
+    }
 
     if (!this._lastInter) {
       this._lastInter = [inter[0], inter[1], inter[2]];
@@ -264,23 +267,33 @@ class SculptBase {
     var dz = inter[2] - this._lastInter[2];
     var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
-    // Min spacing: 10% of radius?
-    var radius = picking.getLocalRadius(); // Local units
-    // World radius is fixed in handleXRInput (0.05).
-    // Let's use world dist check?
-    // Scene.js sets _rWorld2 = 0.05*0.05.
+    // Min spacing: 0.15 * radius (World Units?)
+    // picking.getLocalRadius() is local. We need World Radius for World Dist check.
+    // However, handling it in World Space is fine if we use picking.getIntersectionRadius() equivalent?
+    // picking has nothing.
+    // Let's rely on the fact that 'dist' is World Distance.
+    // And 'radius' (from picking.getLocalRadius()) is Local.
+    // This mismatch is dangerous.
+
+    // Better: use the radius we computed in Scene.js (pickingRadius is passed to picking?)
+    // Actually, Scene.js sets _rWorld2.
+    var rWorld = Math.sqrt(picking._rWorld2);
+
+    // Spacing: 15% of brush size
+    var minSpacing = 0.15 * rWorld;
+
+    if (dist <= minSpacing)
+      return;
 
     // Just stroke every frame for now, or simple distance check
-    if (dist > 0) {
-      // Interpolation could go here
-      this.makeStrokeXR(picking, pickingSym);
+    // Interpolation could go here
+    this.makeStrokeXR(picking, pickingSym);
 
-      this._lastInter[0] = inter[0];
-      this._lastInter[1] = inter[1];
-      this._lastInter[2] = inter[2];
+    this._lastInter[0] = inter[0];
+    this._lastInter[1] = inter[1];
+    this._lastInter[2] = inter[2];
 
-      this.updateRender();
-    }
+    this.updateRender();
   }
 
   makeStrokeXR(picking, pickingSym) {

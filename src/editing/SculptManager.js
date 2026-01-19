@@ -7,7 +7,7 @@ class SculptManager {
   constructor(main) {
     this._main = main;
 
-    this._toolIndex = Enums.Tools.DRAG; // Force DRAG
+    this._toolIndex = Enums.Tools.MOVE;
     this._tools = []; // the sculpting tools
 
     // symmetry stuffs

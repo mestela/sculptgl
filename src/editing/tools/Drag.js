@@ -13,6 +13,50 @@ class Drag extends SculptBase {
     this._idAlpha = 0;
   }
 
+  // VR Support: Drag needs to calculate delta from controller movement
+  updateXR(picking) {
+    var main = this._main;
+    // We need valid controller position history
+    if (!main._vrControllerPos) return;
+
+    if (!this._lastVRPos) {
+      this._lastVRPos = vec3.clone(main._vrControllerPos);
+      return;
+    }
+
+    // VR DRAG LOGIC
+    // Calculate Delta in World Space
+    var deltaWorld = vec3.create();
+    vec3.sub(deltaWorld, main._vrControllerPos, this._lastVRPos);
+
+    var mesh = this.getMesh();
+    var invMat = mat4.create();
+    mat4.invert(invMat, mesh.getMatrix());
+
+    // Vector transformation (ignore translation)
+    var zero = [0, 0, 0];
+    var localZero = [0, 0, 0];
+    var localHead = [0, 0, 0];
+    vec3.transformMat4(localZero, zero, invMat);
+    vec3.transformMat4(localHead, deltaWorld, invMat);
+    vec3.sub(this._dragDir, localHead, localZero);
+
+    // Update Picking Center (Move the brush)
+    vec3.add(picking.getIntersectionPoint(), picking.getIntersectionPoint(), this._dragDir);
+
+    // Repick vertices at new center
+    picking._mesh = mesh;
+    picking.updateLocalAndWorldRadius2();
+    picking.pickVerticesInSphere(picking.getLocalRadius2());
+    picking.computePickedNormal();
+
+    // Apply
+    this.stroke(picking, false);
+
+    // Update history
+    vec3.copy(this._lastVRPos, main._vrControllerPos);
+  }
+
   sculptStroke() {
     var main = this._main;
     var mesh = this.getMesh();
