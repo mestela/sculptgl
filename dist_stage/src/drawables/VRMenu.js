@@ -187,14 +187,18 @@ class VRMenu {
     const gl = this._gl;
     const isCull = gl.getParameter(gl.CULL_FACE);
     const isDepth = gl.getParameter(gl.DEPTH_TEST);
+    const isBlend = gl.getParameter(gl.BLEND);
 
     if (isCull) gl.disable(gl.CULL_FACE);
     if (isDepth) gl.disable(gl.DEPTH_TEST);
+    if (!isBlend) gl.enable(gl.BLEND); // Ensure Blending is ON for Menu
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); // Standard Alpha Blend
 
     ShaderLib[Enums.Shader.TEXTURE].getOrCreate(this._gl).draw(this, main);
 
     if (isCull) gl.enable(gl.CULL_FACE);
     if (isDepth) gl.enable(gl.DEPTH_TEST);
+    if (!isBlend) gl.disable(gl.BLEND); // Restore OFF if it was OFF
   }
 
   getMVP() {
