@@ -77,6 +77,7 @@ This port/proof of concept was done using **[Google Gemini / Antigravity](https:
 My day job is a 3D artist; while I can do VEX and Python OK, and read/write a little bit of JavaScript, tackling a full port like this was totally beyond me. I had a vague understanding of how this port was going to have to be broken down into steps, and it pretty much went as intended. Most of this was short bursts of time between tasks, I'd estimate maybe 8 hours in total. 
 
 **Rough Timeline:**
+
 Saturday:
 - Send something, anything to VR mode.
 - Deal with scale issues (SculptGL default scale is huge in VR).
