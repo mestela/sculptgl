@@ -90,6 +90,7 @@ class Scene {
 
     this._vrTwoHanded = {
       active: false,
+      latch: false,
       prevMid: vec3.create(),
       prevDist: 0.0,
       prevVec: vec3.create()
@@ -1250,18 +1251,36 @@ class Scene {
     // I will search for it first or just patch handleXRInput if I can.
     
     // 6. Dispatch Navigation (Logic Switch)
-    if (leftGrip && rightGrip && leftOrigin && rightOrigin) {
-      // if (window.screenLog && Math.random() < 0.01) window.screenLog("Two Handed Active", "pink");
+    // 6. Dispatch Navigation (Logic Switch)
+    // DOUBLE GRIP LATCH: Enforce "Clean Exit"
+    const bothGripped = leftGrip && rightGrip && leftOrigin && rightOrigin;
+
+    if (bothGripped) {
+      this._vrTwoHanded.latch = true;
       this.processVRTwoHanded(leftOrigin, rightOrigin);
     } else {
       this._vrTwoHanded.active = false;
       if (this.updateDebugPivot) this.updateDebugPivot(null, false);
 
-      if (leftGrip && leftOrigin) this.processVRGripState('left', leftOrigin);
-      else this._vrGrip.left.active = false;
+      if (this._vrTwoHanded.latch) {
+        // LATCH BUSY: Block single grip until both inputs are clearly released
+        const anyGripped = leftGrip || rightGrip;
+        if (!anyGripped) {
+          this._vrTwoHanded.latch = false; // RELEASE LATCH
+          // if (window.screenLog) window.screenLog("Double Grip Latch Released", "gray");
+        }
 
-      if (rightGrip && rightOrigin) this.processVRGripState('right', rightOrigin);
-      else this._vrGrip.right.active = false;
+        // Ensure single states are reset
+        this._vrGrip.left.active = false;
+        this._vrGrip.right.active = false;
+      } else {
+      // Standard Single Grip
+        if (leftGrip && leftOrigin) this.processVRGripState('left', leftOrigin);
+        else this._vrGrip.left.active = false;
+
+        if (rightGrip && rightOrigin) this.processVRGripState('right', rightOrigin);
+        else this._vrGrip.right.active = false;
+      }
     }
   }
 
