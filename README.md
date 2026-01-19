@@ -36,6 +36,17 @@ The following features are currently disabled or not yet ported to the VR interf
 - **Mesh Management**: Cannot add new primitives or import meshes in VR.
 - **Cosmetic**: Controller meshes could be improved.
 
+## Long Term Goals / Vision
+To eventually rewrite this project so it can coexist properly with upstream SculptGL. The current VR implementation is a "hard fork" with significant divergence in the core `Scene.js` logic.
+
+**The Dream Goal:**
+- Seamless Desktop <-> VR Switching.
+- A "Start XR" button in the standard desktop UI.
+- Putting on the headset transitions to the VR interface (hand palette etc).
+- Taking off the headset returns immediately to the desktop interface.
+
+*Note: This likely requires a clean fork/rewrite where the VR functionality is injected as a modular "plugin" rather than replacing the core application loop.*
+
 ## Quick Start
 1. Install dependencies:
    ```bash
