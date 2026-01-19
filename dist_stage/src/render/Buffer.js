@@ -31,6 +31,12 @@ class Buffer {
     } else {
       this._gl.bufferSubData(this._type, 0, data);
     }
+
+    var err = this._gl.getError();
+    if (err !== this._gl.NO_ERROR) {
+      console.error("Buffer Update Error:", err);
+      if (window.screenLog) window.screenLog(`Buffer Err: ${err}`, "red");
+    }
   }
 }
 

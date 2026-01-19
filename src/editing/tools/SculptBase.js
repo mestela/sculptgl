@@ -63,6 +63,8 @@ class SculptBase {
       pickingSym.initAlpha();
     }
 
+    console.log("SculptBase: pushState called via start()");
+    if (window.screenLog) window.screenLog("SculptBase: Start Stroke (Push State)", "green");
     this.pushState();
     this._lastMouseX = main._mouseX;
     this._lastMouseY = main._mouseY;
@@ -94,7 +96,7 @@ class SculptBase {
       if (this.makeStrokeXR) {
         var picking = this._main.getPicking();
         var pickingSym = this._main.getSculptManager().getSymmetry() ? this._main.getPickingSymmetry() : null;
-        this.makeStrokeXR(picking, pickingSym);
+        // this.makeStrokeXR(picking, pickingSym); // Let updateXR handle it
 
         // Init lastInter for continuous update
         var inter = picking.getIntersectionPoint();

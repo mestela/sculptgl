@@ -1308,6 +1308,7 @@ class Mesh {
       cdc = this._meshData._DAcolorsRGB = new Float32Array(nbTriangles * 9);
       cdm = this._meshData._DAmaterialsPBR = new Float32Array(nbTriangles * 9);
     }
+    console.log("Mesh: updateDrawArrays called", full ? "FULL" : "PARTIAL", full ? this.getNbFaces() : iFaces.length);
 
     var nbFaces = full ? this.getNbFaces() : iFaces.length;
     for (var i = 0; i < nbFaces; ++i) {
@@ -1936,6 +1937,7 @@ class Mesh {
 
   updateVertexBuffer() {
     var vertices = this.isUsingDrawArrays() ? this.getVerticesDrawArrays() : this.getVertices();
+
     this.getVertexBuffer().update(vertices, this.getRenderNbVertices() * 3);
   }
 

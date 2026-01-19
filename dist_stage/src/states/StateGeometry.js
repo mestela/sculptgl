@@ -19,7 +19,8 @@ class StateGeometry {
   undo() {
     this.pullVertices();
     var mesh = this._mesh;
-    mesh.updateGeometry(mesh.getFacesFromVertices(this._idVertState), this._idVertState);
+    var iFaces = mesh.getFacesFromVertices(this._idVertState);
+    mesh.updateGeometry(iFaces, this._idVertState);
     mesh.updateGeometryBuffers();
     vec3.copy(mesh.getCenter(), this._center);
     this._main.setMesh(mesh);

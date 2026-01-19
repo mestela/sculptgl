@@ -81,9 +81,15 @@ class Scene {
     this._xrSession = null;
     this._baseRefSpace = null;
     this._xrRefSpace = null;
-    this._xrWorldOffset = null;
+    // [CALIBRATED DEFAULTS] Trans[0.01, 1.09, -0.34] Scale[0.99]
+    // We only set the offset here if XRRigidTransform is available, else null and init later.
+    // XRRigidTransform is usually available in window if Secure Context.
+    this._xrWorldOffset = (typeof XRRigidTransform !== 'undefined')
+      ? new XRRigidTransform({ x: 0.01, y: 1.09, z: -0.34 })
+      : null;
+
     this._activeHandedness = 'right';
-    this._vrScale = 1.0;
+    this._vrScale = 0.99; // Calibrated scale
 
     this._vrGrip = {
       left: { active: false, startPoint: vec3.create() },
@@ -128,6 +134,9 @@ class Scene {
     var modelURL = getOptionsURL().modelurl;
     if (modelURL) this.addModelURL(modelURL);
     else this.addSphere();
+
+    // [DEBUG] Visualize Sphere Lift Target
+    this.updateDebugPivot([0, 1.3, -0.5], true);
   }
 
   addModelURL(url) {
@@ -394,10 +403,11 @@ class Scene {
       gl.depthFunc(gl.LEQUAL);
       gl.disable(gl.BLEND);
 
-      // Debug Cursor (Pass 2 - Scaled Model Space)
-      if (this._debugCursor && this._debugCursor.isVisible()) {
-         this._debugCursor.updateMatrices(cam);
-         this._debugCursor.render(this);
+      // Brush Indicator (NEW)
+      if (this._sculptManager && this._picking.getMesh()) {
+        // rWorld2 is set in handleXRInput (picking logic)
+        const radius = this._picking._rWorld2 ? Math.sqrt(this._picking._rWorld2) : 0.05;
+        this._sculptManager.getSelection().renderVR(this, cam, radius);
       }
     }
   }
@@ -886,11 +896,9 @@ class Scene {
   updateVROffsets() {
     if (!this._baseRefSpace) return;
 
-    const sliderZ = document.getElementById('offsetZ');
-    const valZ = sliderZ ? parseFloat(sliderZ.value) : 0.4;
-
-    const sliderY = document.getElementById('offsetY');
-    const valY = sliderY ? parseFloat(sliderY.value) : -1.2;
+    // Hardcoded offsets (cleaner UI)
+    const valZ = 0.4;
+    const valY = -1.2; // -1.2 puts floor 1.2m below (approx seated/standing)
 
     // We want to move the "origin" relative to the user.
     // Using simple offset on Y and Z.
@@ -1091,7 +1099,7 @@ class Scene {
   updateDebugPivot(pos, active) {
     if (!this._debugPivotMesh) {
        // Lazy Init
-       this._debugPivotMesh = new Primitives.Cube(this._gl);
+      this._debugPivotMesh = Primitives.createCube(this._gl);
        this._debugPivotMesh.setShader(Enums.Shader.FLAT);
        this._debugPivotMesh.setFlatColor([0.0, 1.0, 0.0]); // GREEN (Test)
        this._debugPivotMesh.init();

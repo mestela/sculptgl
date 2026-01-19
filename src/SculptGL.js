@@ -510,27 +510,8 @@ class SculptGL extends Scene {
     this.renderSelectOverRtt();
   }
 
-  // WebXR Support
-  enterXR(session) {
-    super.enterXR(session);
-    session.addEventListener('selectstart', this.onXRSelectStart.bind(this));
-    session.addEventListener('selectend', this.onXRSelectEnd.bind(this));
-  }
-
-  onXRSelectStart(event) {
-    // Determine active hand? For now allow both to trigger.
-    if (event.inputSource.targetRaySpace) {
-      this._sculptManager.start(false);
-      this._action = Enums.Action.SCULPT_EDIT;
-    }
-  }
-
-  onXRSelectEnd(event) {
-    if (event.inputSource.targetRaySpace) {
-      this._sculptManager.end();
-      this._action = Enums.Action.NOTHING;
-    }
-  }
+  // WebXR Support - Delegated to Scene.js
+  // enterXR(session) { super.enterXR(session); }
 
 
 

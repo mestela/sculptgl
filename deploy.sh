@@ -7,7 +7,15 @@ DEST=${3:-'~/tokeru.com/sculptgl-vr/'}
 
 # --- VERSION SAFETY CHECK ---
 CURRENT_VERSION=$(grep -oP 'VERSION: \K(v[0-9]+\.[0-9]+\.[0-9]+)' xr_poc.html)
-LAST_VERSION_FILE=".last_deployed_version"
+
+# Select state file based on destination
+if [[ "$DEST" == *"beta"* ]]; then
+    LAST_VERSION_FILE=".last_deployed_beta"
+    echo "🔧 Detected BETA deployment. Tracking in $LAST_VERSION_FILE"
+else
+    LAST_VERSION_FILE=".last_deployed_version"
+    echo "📦 Detected PROD deployment. Tracking in $LAST_VERSION_FILE"
+fi
 
 if [ -f "$LAST_VERSION_FILE" ]; then
     LAST_VERSION=$(cat "$LAST_VERSION_FILE")

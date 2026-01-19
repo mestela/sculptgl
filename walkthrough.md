@@ -61,3 +61,35 @@ Instead of building a complex 3D UI framework, we use a standard HTML5 `<canvas>
 ### 4. Verification
 *   **Visual**: A "VR Tools" header with sliders and buttons.
 *   **Functional**: Clicking "Inflate" changes the active tool. Moving "Radius" slider changes the brush size.
+
+## VR Undo/Redo Implementation (v0.4.40+)
+### 1. Integration Strategy
+*   **Existing Core**: Reused  (standard SculptGL undo stack).
+*   **VR UI**: Added dedicated buttons to  surface.
+
+### 2. Implementation Details
+*   **GuiXR**: Added  widget group.
+    *   Wired  -> checks for 'undo'/'redo' widget IDs.
+    *   Calls  directly.
+*   **StateManager**:
+    *   Modified to support "Deep Trace" logging (optional) for debugging stack issues.
+    *   Ensures  calls trigger  or visible side-effects in VR immediately.
+*   **Feedback**:
+    *   Visual feedback in  log window confirms stack depth.
+
+
+## VR Undo/Redo Implementation (v0.4.40+)
+### 1. Integration Strategy
+*   **Existing Core**: Reused `StateManager.js` (standard SculptGL undo stack).
+*   **VR UI**: Added dedicated buttons to `GuiXR` surface.
+
+### 2. Implementation Details
+*   **GuiXR**: Added `drawUndoRedo` widget group.
+    *   Wired `onInteract` -> checks for 'undo'/'redo' widget IDs.
+    *   Calls `main.getStateManager().undo()` directly.
+*   **StateManager**:
+    *   Modified to support "Deep Trace" logging (optional) for debugging stack issues.
+    *   Ensures `undo()` calls trigger `history.pushState` or visible side-effects in VR immediately.
+*   **Feedback**:
+    *   Visual feedback in `xr_poc.html` log window confirms stack depth.
+
