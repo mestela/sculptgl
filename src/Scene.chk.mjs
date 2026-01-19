@@ -1010,7 +1010,6 @@ class Scene {
 
     // Init VR Menu System
     if (!this._guiXR) this._guiXR = new GuiXR(this);
-    this._guiXR.init(this._gl);
     if (!this._vrMenu) this._vrMenu = new VRMenu(this._gl, this._guiXR);
   }
 

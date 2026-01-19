@@ -178,10 +178,10 @@ class VRMenu {
       //   this._cacheMVP[13].toFixed(3),
       //   this._cacheMVP[14].toFixed(3),
       //   this._cacheMVP[15].toFixed(3),
-        "Texture:", this._guiXR.getTexture() ? "Valid" : "INT-NULL",
-        "Cull:", this._gl.getParameter(this._gl.CULL_FACE),
-        "Depth:", this._gl.getParameter(this._gl.DEPTH_TEST)
-      );
+      //   "Texture:", this._guiXR.getTexture() ? "Valid" : "INT-NULL",
+      //   "Cull:", this._gl.getParameter(this._gl.CULL_FACE),
+      //   "Depth:", this._gl.getParameter(this._gl.DEPTH_TEST)
+      // );
     }
 
     const gl = this._gl;
