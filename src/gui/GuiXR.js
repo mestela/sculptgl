@@ -186,12 +186,10 @@ class GuiXR {
     // HISTORY TAB
     if (this._activeTab === 'HISTORY') {
       if (w.id === 'undo') {
-        console.log("GuiXR: Undo Pressed");
         if (window.screenLog) window.screenLog("GuiXR: Undo Pressed", "yellow");
         main.getStateManager().undo();
       }
       if (w.id === 'redo') {
-        console.log("GuiXR: Redo Pressed");
         main.getStateManager().redo();
       }
       if (w.id === 'max_resolution') {

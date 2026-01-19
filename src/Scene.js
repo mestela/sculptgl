@@ -359,8 +359,7 @@ class Scene {
         gl.enable(gl.DEPTH_TEST);
       }
 
-      // Debug Cursor (Moved to Pass 2 to respect Scale/Transform)
-      // if (this._debugCursor) { ... } // REMOVED from Pass 1
+
 
       // --- PASS 2: SCALED/TRANSFORMED WORLD (Content) ---
       // Apply World Transform to View Matrix
@@ -864,17 +863,13 @@ class Scene {
     const gl = this._gl;
 
     // Ensure context is compatible (some browsers require this even with the flag)
-    console.log("enterXR: calling makeXRCompatible...");
     gl.makeXRCompatible().then(() => {
-      console.log("enterXR: makeXRCompatible resolved.");
       try {
         const baseLayer = new XRWebGLLayer(session, gl);
         session.updateRenderState({ baseLayer });
-        console.log("enterXR: XRWebGLLayer created and set.");
 
         // Request 'local-floor' space for 6DoF height
         session.requestReferenceSpace('local-floor').then((refSpace) => {
-          console.log("enterXR: Got local-floor reference space.");
           this._baseRefSpace = refSpace;
 
           // If the slider has a value, apply it
@@ -939,10 +934,6 @@ class Scene {
 
     // Apply accumulated world nav
     if (this._xrWorldOffset) {
-      // Silenced for now
-      // let p = this._xrWorldOffset.position;
-      // console.log(`VR State - Scale: ${this._vrScale.toFixed(3)}, Pos: [${p.x.toFixed(3)}, ${p.y.toFixed(3)}, ${p.z.toFixed(3)}]`);
-
       // Tracking Debug (Throttled)
       if (this._logThrottle % 60 === 0 && this._vrControllerPos) {
         const p = this._vrControllerPos; // Vec3
@@ -1082,7 +1073,6 @@ class Scene {
 
     if (active && pos) {
       if (!this._debugCursor.isVisible()) {
-        console.log("showing debug cursor");
         this._debugCursor.setVisible(true);
       }
       var mat = this._debugCursor.getMatrix();
