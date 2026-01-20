@@ -686,8 +686,8 @@ class Scene {
     mat4.scale(mesh.getMatrix(), mesh.getMatrix(), [0.005, 0.005, 0.005]);
     this.subdivideClamp(mesh);
 
-    // Use PBR
-    mesh.setShaderType(Enums.Shader.PBR);
+    // Use Matcap (Better Performance on Mobile VR)
+    mesh.setShaderType(Enums.Shader.MATCAP);
 
     this.addNewMesh(mesh);
     return mesh;
@@ -1561,9 +1561,12 @@ class Scene {
       this._sculptManager.preUpdate(); // Sync position
 
       // CRITICAL: pass picking to updateXR if supported, else standard update
-      if (this._sculptManager.updateXR) {
+      // CRITICAL: pass picking to updateXR if supported, else standard update
+      if (typeof this._sculptManager.updateXR === 'function') {
+      // if (window.screenLog) window.screenLog("Scene: Invoking updateXR", "blue");
         this._sculptManager.updateXR(this._picking);
       } else {
+        if (window.screenLog) window.screenLog("Scene: No updateXR found!", "red");
         this._sculptManager.update();
       }
     } else {
