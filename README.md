@@ -36,18 +36,24 @@ It should work on any WebXR compatible device. So far I've tested on
     - symmetry
 
 ## Todo
-- **Saving/Loading**: File I/O (Export/Import) is not yet implemented in VR
-- **Dynamic Topology**: Disabled (likely too performance-heavy for standalone Quest 3)
-- **Multiresolution**: Not yet supported in VR
-- **Material Selection**: No UI to switch between Matcaps or PBR environments yet
-- **Mesh Management**: Cannot add new primitives or import meshes in VR
-- **Cosmetic**: Controllers are represeted with cubes, should replace with something better
-- menu draws over controllers, it should correctly place itself in depth against controllers/the smesh
-- add rotate to single handed grip, pivot should be where the controller is
-- double handed grip needs work, gets hard to control when the world has been scaled too large
-- replace the transient purple cube that indicates the two-handed-grip pivot point with an icon, maybe always have it draw in front
-- cursor on menu feels laggy; could that run at a higher frame rate?
-- visual indicator for 'click' buttons like undo/redo
+- File I/O (Export/Import) is not yet implemented in VR, so no saving/exporting yet
+- Dynamic Topology disabled (likely too performance-heavy for standalone Quest 3)
+- Multiresolution Not yet supported in VR
+- No UI to switch between Matcaps or PBR environments yet
+- Cannot add new primitives or import meshes in VR
+- Controllers are represeted with cubes, should replace with something better
+- Menu draws over controllers, it should correctly place itself in depth against controllers/the smesh
+- Add rotate to single handed grip, pivot should be where the controller is
+- Double handed grip needs work, gets hard to control when the world has been scaled too large
+- Two-handed-grip pivot point needs an overlay icon, not the current purple cube
+- Cursor on menu feels laggy; could that run at a higher frame rate?
+- Visual indicator for 'click' buttons like undo/redo
+- Using symmetry near the mirror plan causes issues, easy to lose overall symmetry
+- Matcap misaligned, feels like its lit from below
+- Menu layout is clunky
+- Map shortcuts to other buttons, eg thumbstick for undo/redo
+
+
 
 ## Long Term Goals / Vision
 To eventually rewrite this project so it can coexist properly with upstream SculptGL. The current VR implementation is a "hard fork" with significant divergence in the core `Scene.js` logic.
