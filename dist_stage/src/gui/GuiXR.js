@@ -45,10 +45,13 @@ class GuiXR {
         { type: 'button', id: Enums.Tools.MASKING, label: 'Mask', x: 130, y: 420, w: 100, h: 40 }
       ],
       'VIEW': [
-        { type: 'toggle', id: 'wireframe', label: 'Wireframe', x: 20, y: 80, w: 200, h: 50 },
         { type: 'toggle', id: 'flat', label: 'Flat Shading', x: 20, y: 150, w: 200, h: 50 },
-        { type: 'button', id: 'pbr', label: 'PBR', x: 20, y: 220, w: 200, h: 50 },
-        { type: 'button', id: 'matcap', label: 'Matcap', x: 20, y: 290, w: 200, h: 50 }
+        { type: 'toggle', id: 'wireframe', label: 'Wireframe', x: 20, y: 80, w: 200, h: 50 },
+        { type: 'toggle', id: 'symmetry', label: 'Symmetry', x: 20, y: 430, w: 200, h: 50 },
+        { type: 'toggle', id: 'passthrough', label: 'Passthrough', x: 20, y: 220, w: 200, h: 50 },
+        { type: 'info', label: '(Blinks during switch)', x: 230, y: 250 },
+        { type: 'button', id: 'pbr', label: 'PBR', x: 20, y: 290, w: 200, h: 50 },
+        { type: 'button', id: 'matcap', label: 'Matcap', x: 20, y: 360, w: 200, h: 50 }
       ],
       'FILES': [
         { type: 'button', id: 'reset', label: 'Reset Scene', x: 20, y: 80, w: 200, h: 50 },
@@ -175,6 +178,16 @@ class GuiXR {
         mesh.setShowWireframe(!mesh.getShowWireframe());
       } else if (w.id === 'flat') {
         mesh.setFlatShading(!mesh.getFlatShading());
+      } else if (w.id === 'passthrough') {
+        // Toggle Session Mode (AR <-> VR)
+        main.toggleXRSession();
+      } else if (w.id === 'symmetry') {
+        const sm = main.getSculptManager();
+        if (sm) {
+          sm._symmetry = !sm._symmetry;
+          // Force re-render if needed or just wait for next frame
+          main.render();
+        }
       } else if (w.id === 'pbr') {
         mesh.setShaderType(Enums.Shader.PBR);
       } else if (w.id === 'matcap') {
@@ -186,12 +199,10 @@ class GuiXR {
     // HISTORY TAB
     if (this._activeTab === 'HISTORY') {
       if (w.id === 'undo') {
-        console.log("GuiXR: Undo Pressed");
         if (window.screenLog) window.screenLog("GuiXR: Undo Pressed", "yellow");
         main.getStateManager().undo();
       }
       if (w.id === 'redo') {
-        console.log("GuiXR: Redo Pressed");
         main.getStateManager().redo();
       }
       if (w.id === 'max_resolution') {
@@ -293,6 +304,8 @@ class GuiXR {
       if (this._activeTab === 'VIEW') {
         if (wid.id === 'wireframe' && mesh) isActive = mesh.getShowWireframe();
         if (wid.id === 'flat' && mesh) isActive = mesh.getFlatShading();
+        if (wid.id === 'symmetry' && this._main.getSculptManager()) isActive = this._main.getSculptManager().getSymmetry();
+        if (wid.id === 'passthrough' && this._main) isActive = (this._main.getXRMode() === 'immersive-ar');
         if (wid.id === 'pbr' && mesh) isActive = (mesh.getShaderType() === Enums.Shader.PBR);
         if (wid.id === 'matcap' && mesh) isActive = (mesh.getShaderType() === Enums.Shader.MATCAP);
       }

@@ -276,7 +276,7 @@
 
 
                                                                                                                                                                                                                                                             // Show version on screen
-                                                                                                                                                                                                                                                                if (window.screenLog) window.screenLog("VERSION: v0.4.52 - Brush Indicator Restored", "lime");
+                                                                                                                                                                                                                                                                if (window.screenLog) window.screenLog("VERSION: v0.4.83 - Clean & Symmetric", "lime");
 
             // Check HTTPS
             if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -308,18 +308,18 @@
             let sessionType = 'immersive-vr';
 
             if ('xr' in navigator) {
-                // Check AR Support first (Passthrough)
-                navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                // Prefer VR (Immersive VR) for Battery Savings
+                navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
                     if (supported) {
-                        sessionType = 'immersive-ar';
-                        btn.textContent = 'Enter AR';
+                        sessionType = 'immersive-vr';
+                        btn.textContent = 'Enter VR';
                         btn.addEventListener('click', onEnterVR);
                     } else {
-                // Fallback to VR
-                        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
-                            if (supported) {
-                                sessionType = 'immersive-vr';
-                                btn.textContent = 'Enter VR';
+                        // Fallback to AR if VR not supported
+                        navigator.xr.isSessionSupported('immersive-ar').then((arSupported) => {
+                            if (arSupported) {
+                                sessionType = 'immersive-ar';
+                                btn.textContent = 'Enter AR';
                                 btn.addEventListener('click', onEnterVR);
                             } else {
                                 btn.disabled = true;
@@ -333,18 +333,10 @@
             }
 
             async function onEnterVR() {
-                try {
-                    // Request session
-                    const session = await navigator.xr.requestSession(sessionType, {
-                        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
-                    });
-                    if (app.enterXR) {
-                        app.enterXR(session);
-                    } else {
-                        console.warn("enterXR not implemented on SculptGL instance yet.");
-                    }
-                } catch (e) {
-                    console.error("Failed to start XR session", e);
+                if (app && app.startXRSession) {
+                    app.startXRSession(sessionType);
+                } else {
+                    console.error("App not ready or startXRSession missing");
                 }
             }
         };

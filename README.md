@@ -4,37 +4,51 @@
 **Active Development**: This is a fork of [SculptGL](http://stephaneginier.com/sculptgl) focused on adding WebXR capabilities, specifically a VR Menu system.
 (The original project is no longer actively maintained by the author).
 
-
 **[Try the Live VR Build Here](https://tokeru.com/sculptgl-vr/)**
 
 ![SculptGL VR Screenshot](assets/sculptgl_vr.webp)
 *SculptGL running on desktop, with SculptGL-VR running natively on a Quest 3 in foreground in AR/passthrough mode.*
 
+## Supported platforms
+It should work on any WebXR compatible device. So far I've tested on
+
+- Quest 2 native browser
+- Quest 3 native browser
+- Google Chrome on Windows PCVR via Meta Link and Quest 3
+
+
 ## WebXR Features (What works)
 - **Core VR/AR**:
     - Works in PCVR (accessible via Meta Link/Air Link).
-    - **Native Quest 3 Support**: Includes AR Passthrough mode.
-    - Rewrote renderer for WebXR compatibility.
+    - **Native Quest 2/3 Support**: Includes AR Passthrough mode (select it from the view menu, there's a noticable pause/glitch when it swaps)
+    - Render ported to webXR
 - **Interaction**:
-    - **VR Tablet Menu**: UI moved to a palette on the left controller.
+    - **VR Tablet Menu**: UI moved to a palette on the left controller
     - **Two-Handed Navigation**:
-        - Single Grip: Translate world.
-        - Double Grip: Scale and Rotate world.
-    - Ray-casting support for UI interaction.
+        - Single Grip: Translate world
+        - Double Grip: Scale and Rotate world
+    - Ray-casting support for UI interaction
 - **Sculpting & Rendering**:
-    - Most brushes are fully functional.
-    - Undo/Redo supported.
-    - Rendering modes: Matcap, PBR, Wireframe, Flat Shading.
-    - Brush Indicator (Cursor) restored in VR.
+    - Most brushes are fully functional
+    - Undo/Redo supported
+    - Rendering modes: Matcap, PBR, Wireframe, Flat Shading
+    - Brush Indicator (Cursor) restored in VR
 
-## Missing / Known Issues
-The following features are currently disabled or not yet ported to the VR interface:
-- **Saving/Loading**: File I/O (Export/Import) is not yet implemented in VR.
-- **Dynamic Topology**: Disabled (likely too performance-heavy for standalone Quest 3).
-- **Multiresolution**: Not yet supported in VR.
-- **Material Selection**: No UI to switch between Matcaps or PBR environments yet.
-- **Mesh Management**: Cannot add new primitives or import meshes in VR.
-- **Cosmetic**: Controller meshes could be improved.
+## Missing / Known Issues / Todo
+- **Saving/Loading**: File I/O (Export/Import) is not yet implemented in VR
+- **Dynamic Topology**: Disabled (likely too performance-heavy for standalone Quest 3)
+- **Multiresolution**: Not yet supported in VR
+- **Material Selection**: No UI to switch between Matcaps or PBR environments yet
+- **Mesh Management**: Cannot add new primitives or import meshes in VR
+- **Cosmetic**: Controllers are represeted with cubes, should replace with something better
+- crease brush a bit erratic, will cause render glitches and make parts of the mesh invisible
+- symmetry not enabled yet
+- menu draws over controllers, it should correctly place itself in depth against controllers/the smesh
+- add rotate to single handed grip, pivot should be where the controller is
+- double handed grip needs work, gets hard to control when the world has been scaled too large
+- replace the transient purple cube that indicates the two-handed-grip pivot point with an icon, maybe always have it draw in front
+- cursor on menu feels laggy; could that run at a higher frame rate?
+- visual indicator for 'click' buttons like undo/redo
 
 ## Long Term Goals / Vision
 To eventually rewrite this project so it can coexist properly with upstream SculptGL. The current VR implementation is a "hard fork" with significant divergence in the core `Scene.js` logic.

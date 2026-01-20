@@ -31,11 +31,30 @@ class Move extends SculptBase {
 
     if (main.getSculptManager().getSymmetry()) {
       var pickingSym = main.getPickingSymmetry();
-      pickingSym.intersectionMouseMesh();
-      pickingSym.setLocalRadius2(picking.getLocalRadius2());
-
-      if (pickingSym.getMesh())
-        this.initMoveData(pickingSym, this._moveDataSym);
+      
+      // VR Symmetry Init
+      if (main._xrSession && main._vrControllerPos) {
+          // Mirror 'world' pos
+          var mesh = this.getMesh();
+          var worldPos = vec3.clone(main._vrControllerPos);
+          var mInv = mat4.create();
+          mat4.invert(mInv, mesh.getMatrix());
+          vec3.transformMat4(worldPos, worldPos, mInv); // To Local
+          worldPos[0] = -worldPos[0]; // Mirror X
+          vec3.transformMat4(worldPos, worldPos, mesh.getMatrix()); // Back to World
+          
+          pickingSym.intersectionSphereMeshes([mesh], worldPos, picking.getWorldRadius());
+          if (pickingSym.getMesh()) {
+            pickingSym.setLocalRadius2(picking.getLocalRadius2());
+            this.initMoveData(pickingSym, this._moveDataSym);
+          }
+      } else {
+          pickingSym.intersectionMouseMesh();
+          pickingSym.setLocalRadius2(picking.getLocalRadius2());
+    
+          if (pickingSym.getMesh())
+            this.initMoveData(pickingSym, this._moveDataSym);
+      }
     }
   }
 
@@ -46,6 +65,7 @@ class Move extends SculptBase {
       picking.pickVerticesInSphere(picking.getLocalRadius2());
     vec3.copy(moveData.center, picking.getIntersectionPoint());
     var iVerts = picking.getPickedVertices();
+    moveData.iVerts = new Uint32Array(iVerts); // Clone vertices
     // undo-redo
     this._main.getStateManager().pushVertices(iVerts);
 
@@ -62,7 +82,7 @@ class Move extends SculptBase {
   }
 
   copyVerticesProxy(picking, moveData) {
-    var iVerts = picking.getPickedVertices();
+    var iVerts = moveData.iVerts || picking.getPickedVertices(); // Use stored if avail
     var vAr = this.getMesh().getVertices();
     var vProxy = moveData.vProxy;
     for (var i = 0, nbVerts = iVerts.length; i < nbVerts; ++i) {
@@ -177,36 +197,51 @@ class Move extends SculptBase {
 
     const main = this._main;
     const currentPos = main._vrControllerPos; // Set in Scene.js processVRSculpting
+    
+    // if (window.screenLog && this._main._logThrottle % 60 === 0) window.screenLog("Move: sculptStrokeXR", "white");
 
     if (!currentPos) return;
 
-    // Reset vertices to proxy (original positions) before applying new delta
-    this.copyVerticesProxy(picking, this._moveData);
-
-    // Calculate delta vector (Current - Start)
-    // Move.js applies this delta to the original vertex positions (vProxy)
-    // So 'dir' is an absolute offset from the start.
-
-    // We update _moveData.dir
-    const moveData = this._moveData;
-    vec3.sub(moveData.dir, currentPos, this._lastVRPos);
-
-    // VR Scale Correction:
-    // The delta is ALREADY in Model Space (from Scene.js).
-    // So we do NOT need to scale it again.
-    // vec3.scale(moveData.dir, moveData.dir, 1.0 / scale); <--- REMOVED
-
-
-    // Perform the move
-    // We use picking.getPickedVertices() which was set at start (and shouldn't change for Move tool?)
-    // Actually Move tool drags the same vertices.
-    this.move(picking.getPickedVertices(), moveData.center, picking.getLocalRadius2(), moveData, picking);
-
-    // Symmetry?
-    // if (useSym) ... (Skipping for now to keep it simple and safe)
-
+    // Standardized Move Logic (World -> Local)
     var mesh = this.getMesh();
+    var mInv = mat4.create();
+    mat4.invert(mInv, mesh.getMatrix());
+
+    // Calculate Local Space Delta
+    var vStartLocal = vec3.clone(this._lastVRPos);
+    vec3.transformMat4(vStartLocal, vStartLocal, mInv);
+
+    var vCurrLocal = vec3.clone(currentPos);
+    vec3.transformMat4(vCurrLocal, vCurrLocal, mInv);
+
+    // Apply Local Delta to Primary
+    const moveData = this._moveData;
+    // Reset vertices to proxy (original positions) before applying new delta
+    this.copyVerticesProxy(picking, moveData);
+    if (moveData.iVerts) {
+       vec3.sub(moveData.dir, vCurrLocal, vStartLocal); 
+       this.move(moveData.iVerts, moveData.center, picking.getLocalRadius2(), moveData, picking);
+    }
+
+    // Apply Local Delta to Symmetry
+    var pickingSym = main.getPickingSymmetry();
+    if (main.getSculptManager().getSymmetry() && pickingSym.getMesh()) {
+        const moveDataSym = this._moveDataSym;
+        if (moveDataSym.iVerts) {
+            // Reset vertices to proxy (original positions) before applying new delta
+            this.copyVerticesProxy(pickingSym, moveDataSym);
+        
+            vec3.copy(moveDataSym.dir, moveData.dir);
+            moveDataSym.dir[0] = -moveDataSym.dir[0]; // Mirror X Delta
+            
+            this.move(moveDataSym.iVerts, moveDataSym.center, pickingSym.getLocalRadius2(), moveDataSym, pickingSym);
+        }
+    }
+
     mesh.updateGeometry(mesh.getFacesFromVertices(picking.getPickedVertices()), picking.getPickedVertices());
+    if (pickingSym && pickingSym.getMesh() && this._moveDataSym.iVerts) {
+         mesh.updateGeometry(mesh.getFacesFromVertices(pickingSym.getPickedVertices()), pickingSym.getPickedVertices());
+    }
     this.updateRender();
   }
 }

@@ -510,11 +510,52 @@ class SculptGL extends Scene {
     this.renderSelectOverRtt();
   }
 
-  // WebXR Support - Delegated to Scene.js
-  // enterXR(session) { super.enterXR(session); }
+  // WebXR Support
+  async startXRSession(mode) {
+    if (!navigator.xr) {
+      console.error("WebXR not available");
+      return;
+    }
 
+    // End existing session if any
+    if (this._xrSession) {
+      await this._xrSession.end();
+    }
 
+    try {
+      const session = await navigator.xr.requestSession(mode, {
+        optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
+      });
+      this.enterXR(session);
+      this._currentXRMode = mode;
+      console.log(`Started XR Session: ${mode}`);
+    } catch (e) {
+      console.error(`Failed to start ${mode} session:`, e);
+      if (window.screenLog) window.screenLog(`Failed to start ${mode}: ${e.message}`, "red");
+    }
+  }
 
+  async toggleXRSession() {
+    const newMode = (this._currentXRMode === 'immersive-ar') ? 'immersive-vr' : 'immersive-ar';
+
+    // Check support first
+    try {
+      const supported = await navigator.xr.isSessionSupported(newMode);
+      if (supported) {
+        await this.startXRSession(newMode);
+      } else {
+        console.warn(`${newMode} not supported`);
+        if (window.screenLog) window.screenLog(`${newMode} not supported`, "orange");
+      }
+    } catch (e) {
+      console.error("Error checking session support:", e);
+    }
+  }
+
+  getXRMode() {
+    // Default to 'immersive-vr' if undefined (or null)
+    return this._currentXRMode;
+  }
 }
 
 export default SculptGL;

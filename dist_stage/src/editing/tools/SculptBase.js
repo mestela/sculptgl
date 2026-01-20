@@ -1,6 +1,6 @@
 import Enums from 'misc/Enums';
 import Utils from 'misc/Utils';
-import { vec3 } from 'gl-matrix';
+import { vec3, mat4 } from 'gl-matrix';
 
 // Overview sculpt :
 // start (check if we hit the mesh, start state stack) -> startSculpt
@@ -96,13 +96,16 @@ class SculptBase {
       if (this.makeStrokeXR) {
         var picking = this._main.getPicking();
         var pickingSym = this._main.getSculptManager().getSymmetry() ? this._main.getPickingSymmetry() : null;
-        // this.makeStrokeXR(picking, pickingSym); // Let updateXR handle it
+
+        this.makeStrokeXR(picking, pickingSym); 
 
         // Init lastInter for continuous update
         var inter = picking.getIntersectionPoint();
         if (inter) this._lastInter = [inter[0], inter[1], inter[2]];
       }
       return;
+    } else {
+      if (window.screenLog) window.screenLog("SculptBase: startSculpt (VR Check FAIL)", "red");
     }
 
     this.sculptStroke();
@@ -252,55 +255,38 @@ class SculptBase {
     var main = this._main;
     var pickingSym = main.getSculptManager().getSymmetry() ? main.getPickingSymmetry() : null;
 
-    // Use 3D distance from last intersection point
-    // We assume picking.getIntersectionPoint() is valid (set by handleXRInput)
-    var inter = picking.getIntersectionPoint(); // vec3
-    if (!inter) {
-      if (window.screenLog && this._main._logThrottle % 60 === 0) window.screenLog("Sculpt: Lost Grip (No Inter)", "red");
+    // Use Controller Distance (Robust like Move.js) instead of Surface Distance (Fragile)
+    var worldPos = main._vrControllerPos;
+    if (!worldPos || !this._lastVRPos) {
       return;
     }
 
-    if (!this._lastInter) {
-      this._lastInter = [inter[0], inter[1], inter[2]];
-    }
-
-    var dx = inter[0] - this._lastInter[0];
-    var dy = inter[1] - this._lastInter[1];
-    var dz = inter[2] - this._lastInter[2];
-    var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-    // Min spacing: 0.15 * radius (World Units?)
-    // picking.getLocalRadius() is local. We need World Radius for World Dist check.
-    // However, handling it in World Space is fine if we use picking.getIntersectionRadius() equivalent?
-    // picking has nothing.
-    // Let's rely on the fact that 'dist' is World Distance.
-    // And 'radius' (from picking.getLocalRadius()) is Local.
-    // This mismatch is dangerous.
-
-    // Better: use the radius we computed in Scene.js (pickingRadius is passed to picking?)
-    // Actually, Scene.js sets _rWorld2.
+    var dist = vec3.dist(worldPos, this._lastVRPos);
     var rWorld = Math.sqrt(picking._rWorld2);
-
-    // Spacing: 15% of brush size
     var minSpacing = 0.15 * rWorld;
 
-    if (dist <= minSpacing)
+    if (dist <= minSpacing) {
+      // if (window.screenLog && this._main._logThrottle % 60 === 0) window.screenLog(`SB: Skip dist=${dist.toFixed(4)}`, "grey");
       return;
+    }
 
-    // Just stroke every frame for now, or simple distance check
-    // Interpolation could go here
     this.makeStrokeXR(picking, pickingSym);
 
-    this._lastInter[0] = inter[0];
-    this._lastInter[1] = inter[1];
-    this._lastInter[2] = inter[2];
+    vec3.copy(this._lastVRPos, worldPos);
+    // Also update _lastInter nicely if we can, but it's less critical now
+    var inter = picking.getIntersectionPoint();
+    if (inter) {
+      if (!this._lastInter) this._lastInter = [0, 0, 0];
+      this._lastInter[0] = inter[0];
+      this._lastInter[1] = inter[1];
+      this._lastInter[2] = inter[2];
+    }
 
     this.updateRender();
   }
 
   makeStrokeXR(picking, pickingSym) {
     var mesh = this.getMesh();
-    // picking.intersectionMouseMesh(mesh, mouseX, mouseY); // SKIP THIS
     // picking is already updated by handleXRInput
 
     var pick1 = picking.getMesh();
@@ -314,17 +300,44 @@ class SculptBase {
       this.stroke(picking, false);
 
     var pick2;
-    if (pickingSym) {
-      // pickingSym needs to be updated manually for VR?
-      // pickingSym.intersectionRayMesh(...) 
-      // For now, disable symmetry in VR or fix later
-      // pickingSym.intersectionMouseMesh(mesh, mouseX, mouseY);
-      // pick2 = pickingSym.getMesh();
+    // Symmetry Logic for Generic Tools
+    if (pickingSym && this._main.getSculptManager().getSymmetry()) {
+      const main = this._main;
+      if (main._vrControllerPos) {
+        // Mirror World Pos
+        var worldPos = vec3.clone(main._vrControllerPos);
+        var mInv = mat4.create();
+        mat4.invert(mInv, mesh.getMatrix());
+
+        // World -> Local
+        var localPos = vec3.create();
+        vec3.transformMat4(localPos, worldPos, mInv);
+        localPos[0] = -localPos[0]; // Mirror X
+
+        // Local -> World
+        var symWorldPos = vec3.create();
+        vec3.transformMat4(symWorldPos, localPos, mesh.getMatrix());
+
+        // Intersection
+        var rWorld = Math.sqrt(picking._rWorld2);
+        pickingSym.intersectionSphereMeshes([mesh], symWorldPos, rWorld);
+
+        if (pickingSym.getMesh()) {
+          pickingSym.setLocalRadius2(picking.getLocalRadius2());
+          pickingSym.pickVerticesInSphere(pickingSym.getLocalRadius2());
+          pickingSym.computePickedNormal();
+          pick2 = pickingSym.getMesh();
+        }
+      }
     }
 
-    if (!dynTopo && pick1) this.stroke(picking, false);
-    // if (pick2) this.stroke(pickingSym, true);
-    return pick1; // || pick2;
+    if (!dynTopo && pick1) {
+      this.stroke(picking, false);
+    }
+    if (pick2) {
+      this.stroke(pickingSym, true);
+    }
+    return pick1 || pick2;
   }
 
   /** Return the vertices that point toward the camera */

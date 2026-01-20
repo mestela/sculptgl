@@ -22,6 +22,8 @@ class Brush extends SculptBase {
     var iVertsInRadius = picking.getPickedVertices();
     var intensity = this._intensity * Tablet.getPressureIntensity();
 
+    var intensity = this._intensity * Tablet.getPressureIntensity();
+
     if (!this._accumulate && !this._lockPosition)
       this.updateProxy(iVertsInRadius);
     // undo-redo

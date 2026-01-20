@@ -1,6 +1,6 @@
 import Enums from 'misc/Enums';
 import Utils from 'misc/Utils';
-import { vec3 } from 'gl-matrix';
+import { vec3, mat4 } from 'gl-matrix';
 
 // Overview sculpt :
 // start (check if we hit the mesh, start state stack) -> startSculpt
@@ -93,14 +93,10 @@ class SculptBase {
 
     // VR Support: Initial stroke
     if (this._main._xrSession) {
-      // Unthrottled Log
-      if (window.screenLog) window.screenLog(`SculptBase: startSculpt (VR Check OK)`, "cyan");
-
       if (this.makeStrokeXR) {
         var picking = this._main.getPicking();
         var pickingSym = this._main.getSculptManager().getSymmetry() ? this._main.getPickingSymmetry() : null;
 
-        if (window.screenLog) window.screenLog(`SculptBase: Initial Dot (Sym: ${pickingSym ? 'YES' : 'NO'})`, "cyan");
         this.makeStrokeXR(picking, pickingSym); 
 
         // Init lastInter for continuous update
@@ -259,68 +255,38 @@ class SculptBase {
     var main = this._main;
     var pickingSym = main.getSculptManager().getSymmetry() ? main.getPickingSymmetry() : null;
 
-    // Use 3D distance from last intersection point
-    // We assume picking.getIntersectionPoint() is valid (set by handleXRInput)
-    var inter = picking.getIntersectionPoint(); // vec3
-
-    if (window.screenLog && this._main._logThrottle % 60 === 0) {
-      window.screenLog(`SculptBase: strokeXR. Inter: ${inter ? 'YES' : 'NO'}`, inter ? "lime" : "red");
-    }
-
-    if (!inter) {
-      if (window.screenLog && this._main._logThrottle % 60 === 0) window.screenLog("Sculpt: Lost Grip (No Inter)", "red");
+    // Use Controller Distance (Robust like Move.js) instead of Surface Distance (Fragile)
+    var worldPos = main._vrControllerPos;
+    if (!worldPos || !this._lastVRPos) {
       return;
     }
 
-    if (!this._lastInter) {
-      this._lastInter = [inter[0], inter[1], inter[2]];
-    }
-
-    var dx = inter[0] - this._lastInter[0];
-    var dy = inter[1] - this._lastInter[1];
-    var dz = inter[2] - this._lastInter[2];
-    var dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-    // Min spacing: 0.15 * radius (World Units?)
-    // picking.getLocalRadius() is local. We need World Radius for World Dist check.
-    // However, handling it in World Space is fine if we use picking.getIntersectionRadius() equivalent?
-    // picking has nothing.
-    // Let's rely on the fact that 'dist' is World Distance.
-    // And 'radius' (from picking.getLocalRadius()) is Local.
-    // This mismatch is dangerous.
-
-    // Better: use the radius we computed in Scene.js (pickingRadius is passed to picking?)
-    // Actually, Scene.js sets _rWorld2.
+    var dist = vec3.dist(worldPos, this._lastVRPos);
     var rWorld = Math.sqrt(picking._rWorld2);
-
-    // Spacing: 15% of brush size
     var minSpacing = 0.15 * rWorld;
-
-    var minSpacing = 0.15 * rWorld;
-
-    // Debug Spacing
-    // if (window.screenLog && this._main._logThrottle % 60 === 0) window.screenLog(`Dist: ${dist.toFixed(4)} Min: ${minSpacing.toFixed(4)}`, "white");
 
     if (dist <= minSpacing) {
-    // Loop fix: If specific condition, maybe force? But mostly we want to return.
+      // if (window.screenLog && this._main._logThrottle % 60 === 0) window.screenLog(`SB: Skip dist=${dist.toFixed(4)}`, "grey");
       return;
     }
 
-    // Just stroke every frame for now, or simple distance check
-    // Interpolation could go here
     this.makeStrokeXR(picking, pickingSym);
 
-    this._lastInter[0] = inter[0];
-    this._lastInter[1] = inter[1];
-    this._lastInter[2] = inter[2];
+    vec3.copy(this._lastVRPos, worldPos);
+    // Also update _lastInter nicely if we can, but it's less critical now
+    var inter = picking.getIntersectionPoint();
+    if (inter) {
+      if (!this._lastInter) this._lastInter = [0, 0, 0];
+      this._lastInter[0] = inter[0];
+      this._lastInter[1] = inter[1];
+      this._lastInter[2] = inter[2];
+    }
 
     this.updateRender();
   }
 
   makeStrokeXR(picking, pickingSym) {
-    if (window.screenLog) window.screenLog("SculptBase: makeStrokeXR ENTER", "lime"); 
     var mesh = this.getMesh();
-    // picking.intersectionMouseMesh(mesh, mouseX, mouseY); // SKIP THIS
     // picking is already updated by handleXRInput
 
     var pick1 = picking.getMesh();
@@ -334,132 +300,30 @@ class SculptBase {
       this.stroke(picking, false);
 
     var pick2;
-    if (pickingSym) {
-      // Manually mirror the intersection point for VR symmetry
-      // We can't rely on mouse picking logic here
-      var mesh = this.getMesh();
-      var inter = picking.getIntersectionPoint(); // This is LOCAL point on mesh? No, let's check
+    // Symmetry Logic for Generic Tools
+    if (pickingSym && this._main.getSculptManager().getSymmetry()) {
+      const main = this._main;
+      if (main._vrControllerPos) {
+        // Mirror World Pos
+        var worldPos = vec3.clone(main._vrControllerPos);
+        var mInv = mat4.create();
+        mat4.invert(mInv, mesh.getMatrix());
 
-      // Scene.js handleXRInput calls picking.intersectionSphereMeshes which sets _interPoint (LOCAL)
-      // pickingSym needs to do the same but mirrored.
-
-      // Let's manually mirror the local point against the symmetry plane
-      var ptPlane = mesh.getSymmetryOrigin(); // World Space?
-      var nPlane = mesh.getSymmetryNormal(); // World Space?
-
-      // Actually picking uses *Local* coords for _interPoint usually? 
-      // picking.intersectionSphereMeshes sets _interPoint to nearPoint which is closestPoint (Local)
-
-      // If we have the local point, we can just mirror it in local space if symmetry is local?
-      // Mesh.js getSymmetryOrigin uses transformData center/normal which are usually local?
-      // Wait, transformData._center is local.
-
-      // Let's Try:
-      // 1. Get Picking Intersection (Local)
-      // 2. Mirror it
-      // 3. Set PickingSym to that mirrored point
-      // 4. pickVerticesInSphere
-
-      // BUT: pickingSym needs to know *where* it hit to compute normal etc.
-      // If we just set the point, we skip the "Raycast/SphereCast" verification.
-      // For sculpting, maybe we just assume if we hit X, we hit -X?
-      // That's risky if the mesh isn't symmetric.
-
-      // Robust way:
-      // Use pickingSym.intersectionSphereMeshes with a MIRRORED world center?
-
-      // Let's look at pickingSym init in Scene.js: new Picking(this, true); -> true = xSym
-      // picking.intersectionRayMesh handles symmetry internaly if xSym is true!
-      // But intersectionSphereMeshes (VR) DOES NOT yet handle symmetry?
-
-      // Let's modify intersectionSphereMeshes in Picking.js to handle symmetry?
-      // OR hack it here.
-
-      // HACK here for now:
-      // If we assume the mesh is roughly symmetric, we can just "fake" the second pick
-      // by setting the point.
-
-      // actually pickingSym needs to compute pickedNormal too.
-
-      // Let's try to reuse intersectionSphereMeshes on pickingSym!
-      // We need the simulated "World Grip" position for the other hand?
-      // No, we just need to mirror the current grip position across the mesh plane.
-
-      // This is getting complex for a quick fix.
-      // Let's look at how mouse does it: picking.intersectionMouseMesh calls intersectionRayMesh
-      // intersectionRayMesh has "if (this._xSym) ... Mirror Point ..."
-
-      // So we just need pickingSym.intersectionSphereMeshes to also support symmetry?
-      // Or we manually mirror the input sphere center?
-
-      var worldCenter = this._lastVRPos; // Wait, we need current sphere center. 
-      // It's not passed here. 
-
-      // We need to look at Scene.js handleXRInput to see what it passes.
-      // It calls updateXR(picking). 
-      // It DOES NOT pass the sphere center.
-
-      // OK, plan B:
-      // In makeStrokeXR, we have `picking` which has `_interPoint` (Local).
-      // We can mirror this point and force pickingSym to use it.
-
-      var localInter = picking.getIntersectionPoint();
-      // Mirror X (Local) - Assuming Local Symmetry around 0,0,0 or mesh center?
-      // Mesh.js default symmetry is X axis.
-
-      // Let's just try negating X of localInter for now?
-      var symInter = [-localInter[0], localInter[1], localInter[2]];
-
-      // We also need to check if this point is actually ON the mesh (or close).
-      // If we skip check, we might sculpt air. 
-      // But sculpt only moves existing vertices.
-
-      pickingSym.setIntersectionPoint(symInter);
-      pickingSym.setLocalRadius2(picking.getLocalRadius2());
-
-      // We need to find the face for normal computation?
-      // pickingSym.pickVerticesInSphereTopological?
-      // pickingSym.computePickedNormal()? -> Needs _pickedFace properly set?
-
-      // picking.computePickedNormal() uses polyLerp on _pickedFace.
-      // If we don't have _pickedFace, we get garbage normal.
-
-      // So we MUST find the face.
-      // mesh.intersectSphere might be too slow to call again?
-      // Maybe not.
-
-      // Let's try calling pickingSym.intersectionSphereMeshes with MIRRORED World Center.
-
-      // We need World Center. picking doesn't store it?
-      // Scene.js has it in _vrControllerPos (but that's "red cube" pos).
-
-      // Let's assume we can access main._vrControllerPos?
-      if (this._main._vrControllerPos) {
-        var worldPos = vec3.clone(this._main._vrControllerPos);
-        var meshMat = mesh.getMatrix();
-
-        // We need to mirror worldPos across the Mesh's Symmetry Plane.
-        // That's hard if mesh is rotated.
-
-        // Easiest: Mirror in LOCAL space, then transform back to WORLD?
-        // 1. World -> Local
+        // World -> Local
         var localPos = vec3.create();
-        var invMat = mat4.create();
-        mat4.invert(invMat, meshMat);
-        vec3.transformMat4(localPos, worldPos, invMat);
+        vec3.transformMat4(localPos, worldPos, mInv);
+        localPos[0] = -localPos[0]; // Mirror X
 
-        // 2. Mirror Local (X flip)
-        localPos[0] = -localPos[0];
-
-        // 3. Local -> World
+        // Local -> World
         var symWorldPos = vec3.create();
-        vec3.transformMat4(symWorldPos, localPos, meshMat);
+        vec3.transformMat4(symWorldPos, localPos, mesh.getMatrix());
 
-        // 4. pickingSym.intersectionSphereMeshes
-        var worldRadius = Math.sqrt(picking._rWorld2);
+        // Intersection
+        var rWorld = Math.sqrt(picking._rWorld2);
+        pickingSym.intersectionSphereMeshes([mesh], symWorldPos, rWorld);
 
-        // We need to pass [mesh] because Picking expects an array
-        if (pickingSym.intersectionSphereMeshes([mesh], symWorldPos, worldRadius)) {
+        if (pickingSym.getMesh()) {
+          pickingSym.setLocalRadius2(picking.getLocalRadius2());
           pickingSym.pickVerticesInSphere(pickingSym.getLocalRadius2());
           pickingSym.computePickedNormal();
           pick2 = pickingSym.getMesh();
@@ -467,8 +331,12 @@ class SculptBase {
       }
     }
 
-    if (!dynTopo && pick1) this.stroke(picking, false);
-    if (pick2) this.stroke(pickingSym, true);
+    if (!dynTopo && pick1) {
+      this.stroke(picking, false);
+    }
+    if (pick2) {
+      this.stroke(pickingSym, true);
+    }
     return pick1 || pick2;
   }
 
