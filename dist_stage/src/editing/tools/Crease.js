@@ -36,6 +36,9 @@ class Crease extends SculptBase {
 
   /** Pinch+brush-like sculpt */
   crease(iVertsInRadius, aNormal, center, radiusSquared, intensity, picking) {
+    if (!aNormal || !center || radiusSquared <= 0.0) return;
+    if (!Number.isFinite(aNormal[0]) || !Number.isFinite(aNormal[1]) || !Number.isFinite(aNormal[2])) return;
+
     var mesh = this.getMesh();
     var vAr = mesh.getVertices();
     var mAr = mesh.getMaterials();
@@ -67,9 +70,16 @@ class Crease extends SculptBase {
       fallOff *= mAr[ind + 2] * picking.getAlpha(vx, vy, vz);
       var brushModifier = Math.pow(fallOff, 5) * brushFactor;
       fallOff *= deformIntensity;
-      vAr[ind] = vx + dx * fallOff + anx * brushModifier;
-      vAr[ind + 1] = vy + dy * fallOff + any * brushModifier;
-      vAr[ind + 2] = vz + dz * fallOff + anz * brushModifier;
+
+      var nx = vx + dx * fallOff + anx * brushModifier;
+      var ny = vy + dy * fallOff + any * brushModifier;
+      var nz = vz + dz * fallOff + anz * brushModifier;
+
+      if (Number.isFinite(nx) && Number.isFinite(ny) && Number.isFinite(nz)) {
+        vAr[ind] = nx;
+        vAr[ind + 1] = ny;
+        vAr[ind + 2] = nz;
+      }
     }
   }
 }
