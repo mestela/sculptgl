@@ -34,17 +34,19 @@ class Drag extends SculptBase {
     mat4.invert(invMat, mesh.getMatrix());
 
     // Vector transformation (ignore translation)
-    var zero = [0, 0, 0];
-    var localZero = [0, 0, 0];
-    var localHead = [0, 0, 0];
+    var zero = vec3.create();
+    var localZero = vec3.create();
+    var localHead = vec3.create();
     vec3.transformMat4(localZero, zero, invMat);
     vec3.transformMat4(localHead, deltaWorld, invMat);
     vec3.sub(this._dragDir, localHead, localZero);
 
-    // Update Picking Center (Move the brush)
-    vec3.add(picking.getIntersectionPoint(), picking.getIntersectionPoint(), this._dragDir);
+    // picking is already updated by Scene.js (handleXRInput)
+    // We do NOT need to manually add delta to picking.getIntersectionPoint()
+    // because Scene.js already moved the intersection point to the new controller position.
+    // If we add delta again, we double the speed/offset.
 
-    // Repick vertices at new center
+    // Repick vertices at new center (Scene.js updated intersection)
     picking._mesh = mesh;
     picking.updateLocalAndWorldRadius2();
     picking.pickVerticesInSphere(picking.getLocalRadius2());
@@ -53,8 +55,26 @@ class Drag extends SculptBase {
     // Apply
     this.stroke(picking, false);
 
+    // Symmetry
+    var pickingSym = main.getPickingSymmetry();
+    if (main.getSculptManager().getSymmetry() && pickingSym) {
+      // Mirror the delta vector
+      vec3.copy(this._dragDirSym, this._dragDir);
+      Geometry.mirrorPoint(this._dragDirSym, [0, 0, 0], mesh.getSymmetryNormal());
+
+      // Scene.js updates pickingSym intersection too
+      if (pickingSym.getMesh()) {
+        pickingSym.setLocalRadius2(picking.getLocalRadius2());
+        pickingSym.pickVerticesInSphere(pickingSym.getLocalRadius2());
+        pickingSym.computePickedNormal();
+        this.stroke(pickingSym, true);
+      }
+    }
+
     // Update history
     vec3.copy(this._lastVRPos, main._vrControllerPos);
+
+    this.updateRender();
   }
 
   sculptStroke() {
