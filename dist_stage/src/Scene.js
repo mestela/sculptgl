@@ -1209,6 +1209,7 @@ class Scene {
     
     let leftGrip = false, rightGrip = false;
     let leftOrigin = null, rightOrigin = null;
+    let leftRot = null, rightRot = null;
 
     for (const source of sources) {
       if (!source.gripSpace) continue;
@@ -1269,8 +1270,11 @@ class Scene {
         //    window.screenLog(`Grip Active: ${source.handedness}`, "cyan");
         // }
 
-        if (source.handedness === 'left') { leftGrip = isGrip; leftOrigin = originBase; }
-        if (source.handedness === 'right') { rightGrip = isGrip; rightOrigin = originBase; }
+        const rot = basePose.transform.orientation; // Quaternion {x,y,z,w}
+        const rotQuat = quat.fromValues(rot.x, rot.y, rot.z, rot.w);
+
+        if (source.handedness === 'left') { leftGrip = isGrip; leftOrigin = originBase; leftRot = rotQuat; }
+        if (source.handedness === 'right') { rightGrip = isGrip; rightOrigin = originBase; rightRot = rotQuat; }
       }
     }
 
@@ -1327,30 +1331,50 @@ class Scene {
         this._vrGrip.left.active = false;
         this._vrGrip.right.active = false;
       } else {
-      // Standard Single Grip
-        if (leftGrip && leftOrigin) this.processVRGripState('left', leftOrigin);
+        // Standard Single Grip
+        if (leftGrip && leftOrigin && leftRot) this.processVRGripState('left', leftOrigin, leftRot);
         else this._vrGrip.left.active = false;
 
-        if (rightGrip && rightOrigin) this.processVRGripState('right', rightOrigin);
+        if (rightGrip && rightOrigin && rightRot) this.processVRGripState('right', rightOrigin, rightRot);
         else this._vrGrip.right.active = false;
       }
     }
   }
 
-  processVRGripState(handedness, origin) {
+  processVRGripState(handedness, origin, rotation) {
     const gState = this._vrGrip[handedness];
     if (!gState.active) {
       gState.active = true;
       vec3.copy(gState.startPoint, origin);
+      quat.copy(gState.startRot, rotation);
+      if (window.screenLog) window.screenLog(`Grip Start: ${handedness}`, "lime");
     } else {
       // Delta in Base Space approx World Space delta if orientation aligned
       const delta = vec3.create();
       vec3.sub(delta, origin, gState.startPoint);
 
-      // Threshold for jitter
+      // Threshold for jitter (Translation)
       if (vec3.length(delta) > 0.0001) {
         this.moveWorld([delta[0], delta[1], delta[2]]);
         vec3.copy(gState.startPoint, origin);
+      }
+
+      // Rotation Delta
+      if (rotation) {
+        const qDelta = quat.create();
+        const qInv = quat.create();
+        quat.invert(qInv, gState.startRot);
+        quat.multiply(qDelta, rotation, qInv); // Current * InvStart = Delta
+
+        // Threshold for jitter (Rotation) - ~0.1 degree
+        // w component of small delta quat is close to 1.0. 
+        // 1.0 - 0.999998 is very small.
+        if (Math.abs(qDelta[3] - 1.0) > 0.000001) {
+          // DEBUG ROTATION
+          // if (window.screenLog && this._logThrottle % 20 === 0) window.screenLog(`Rot Delta: ${qDelta[3]}`, "white");
+          this.rotateWorld(qDelta, origin); // Pivot around HAND (origin)
+          quat.copy(gState.startRot, rotation);
+        }
       }
     }
   }

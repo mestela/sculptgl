@@ -98,11 +98,8 @@ class SculptManager {
   }
 
   updateXR(picking) {
-    if (window.screenLog) window.screenLog("SculptManager: updateXR called", "cyan");
     if (this._tools[this._toolIndex].updateXR) {
       this._tools[this._toolIndex].updateXR(picking);
-    } else {
-      if (window.screenLog) window.screenLog("SculptManager: Tool has no updateXR!", "red");
     }
   }
 

@@ -35,14 +35,13 @@ It should work on any WebXR compatible device. So far I've tested on
     - Brush Indicator (Cursor) restored in VR
     - symmetry
 
-## Missing / Known Issues / Todo
+## Todo
 - **Saving/Loading**: File I/O (Export/Import) is not yet implemented in VR
 - **Dynamic Topology**: Disabled (likely too performance-heavy for standalone Quest 3)
 - **Multiresolution**: Not yet supported in VR
 - **Material Selection**: No UI to switch between Matcaps or PBR environments yet
 - **Mesh Management**: Cannot add new primitives or import meshes in VR
 - **Cosmetic**: Controllers are represeted with cubes, should replace with something better
-- crease brush a bit erratic, will cause render glitches and make parts of the mesh invisible
 - menu draws over controllers, it should correctly place itself in depth against controllers/the smesh
 - add rotate to single handed grip, pivot should be where the controller is
 - double handed grip needs work, gets hard to control when the world has been scaled too large
