@@ -36,7 +36,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - symmetry
 
 ## Todo
-- File I/O (Export/Import) is not yet implemented in VR, so no saving/exporting yet
+- **Saving/Loading**: File I/O (Export/Import) is not yet implemented in VR (See [Research Notes](docs/vr_file_io_research.md))
 - Dynamic Topology disabled (likely too performance-heavy for standalone Quest 3)
 - Multiresolution Not yet supported in VR
 - No UI to switch between Matcaps or PBR environments yet
