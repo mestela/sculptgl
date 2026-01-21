@@ -529,6 +529,15 @@ class SculptGL extends Scene {
       const session = await navigator.xr.requestSession(mode, {
         optionalFeatures: ['local-floor', 'bounded-floor', 'hand-tracking']
       });
+
+      // TRUSTED EVENT LISTENER for File I/O
+      session.addEventListener('select', (event) => {
+        // Trigger GuiXR Select
+        if (this._scene && this._scene._guiXR) {
+          this._scene._guiXR.onClick();
+        }
+      });
+
       this.enterXR(session);
       this._currentXRMode = mode;
       console.log(`Started XR Session: ${mode}`);

@@ -153,12 +153,25 @@ class GuiXR {
         }
       }
     } else {
-      // Buttons / Toggles
+      // Buttons / Toggles: VISUAL ONLY (Action via onClick)
       this._lastClick = now;
-      this._executeAction(w);
+      // this._executeAction(w); // DISABLE UNTRUSTED POLLING EXECUTION
       this._needsUpdate = true;
       this.draw();
     }
+  }
+
+  onClick() {
+    // Trusted Event Trigger
+    const w = this._hoverWidget;
+    if (!w) return;
+
+    if (w.type === 'slider') return; // Sliders handled by onInteract
+
+    this._executeAction(w);
+    this._needsUpdate = true;
+    this.draw();
+
   }
 
   _executeAction(w) {

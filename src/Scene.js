@@ -1428,6 +1428,25 @@ class Scene {
     }
   }
 
+  scaleWorld(ratio, pivot) {
+    if (this._vrScale === undefined) this._vrScale = 1.0;
+    this._vrScale *= ratio;
+
+    // Pivot Lock: If scaling around the origin (0,0,0), skip position math
+    if (vec3.length(pivot) < 0.0001) return;
+
+    if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: 0 });
+
+    let pos = vec3.fromValues(this._xrWorldOffset.position.x, this._xrWorldOffset.position.y, this._xrWorldOffset.position.z);
+    let diff = vec3.create();
+    vec3.sub(diff, pos, pivot);
+    vec3.scale(diff, diff, 1.0 / ratio);
+    vec3.add(pos, pivot, diff);
+
+    this._xrWorldOffset = new XRRigidTransform({ x: pos[0], y: pos[1], z: pos[2] }, this._xrWorldOffset.orientation);
+    this.updateVROffsets();
+  }
+
   rotateWorld(qDelta, pivot) {
     if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: 0 });
 
