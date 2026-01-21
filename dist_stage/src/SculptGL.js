@@ -42,6 +42,11 @@ class SculptGL extends Scene {
 
     this._eventProxy = {};
 
+    // NUCLEAR FIX: Expose instance globally to bypass scope hell
+    window.sculptgl_instance = this;
+
+    this.initHammer();
+
     this.initHammer();
     this.addEvents();
   }
@@ -532,16 +537,19 @@ class SculptGL extends Scene {
 
       // TRUSTED EVENT LISTENER for File I/O
       session.addEventListener('select', (event) => {
-        if (window.screenLog) window.screenLog("XR SELECT Event Fired", "lime");
-        console.log("XR SELECT Event Fired", event);
+        // Robust GuiXR Lookup: Try 'this' (inherited), then fallback to 'window.app'
+        const gui = this._guiXR || (window.app && window.app._guiXR);
 
-        // Trigger GuiXR Select
-        if (this._scene && this._scene._guiXR) {
-          console.log("Delegating to GuiXR.onClick");
-          this._scene._guiXR.onClick();
+        if (gui) {
+          gui.onClick();
         } else {
-          console.error("GuiXR not found in Scene", this._scene);
-          if (window.screenLog) window.screenLog("GuiXR Missing!", "red");
+          console.error("VR Menu (GuiXR) Not Found.", this);
+          // Attempt force init if GL is ready (Last Resort)
+          if (this._gl && !this._guiXR) {
+            console.warn("Attempting emergency GuiXR init...");
+            this.initVRControllers();
+            if (this._guiXR) this._guiXR.onClick();
+          }
         }
       });
 
