@@ -39,21 +39,27 @@ It should work on any WebXR compatible device. So far I've tested on
     - Dynamic Topology (Experimental)
 
 ## Todo
-- Multiresolution Not yet supported in VR
-- No UI to switch between Matcaps or PBR environments yet
-- Cannot add new primitives in VR
-- Controllers are represented with cubes, should replace with something better
-- Menu draws over controllers, it should correctly place itself in depth against controllers/the smesh
-- Double handed grip needs work, gets hard to control when the world has been scaled too large
-- Two-handed-grip pivot point needs an overlay icon, not the current purple cube
-- Cursor on menu feels laggy; could that run at a higher frame rate?
-- Using symmetry near the mirror plan causes issues with move tool (other brush based tools are ok now)
-- Matcap misaligned, feels like its lit from below
-- Menu layout is clunky
-- Jump between passthrough (AR) and immersive (VR) modes is janky
-- UX for importing meshes is clunky (forced back into 2d mode to get standard browser import dialog)
-- Map shortcuts to other buttons, eg thumbstick for undo/redo
-- Voxel brush
+- ** Functionality **:
+    - Multiresolution not yet supported in VR
+    - Can't change matcaps or PBR environment (need combobox UI element)
+    - Add primitives menu missing
+    - Transform tool/gizmo missing
+    - Symmetry with move tool buggy (other brush based tools are ok)
+    - Lots of 'minor' UI missing (need to take an inventory of all the menu items)
+    - Voxel brush
+- ** UI + UX **  
+    - Menu draws over controllers, it should correctly place itself in depth against controllers/the mesh
+    - Default brush size too large
+    - Controllers are represented with cubes, replace with something better    
+    - Two-handed-grip pivot point needs an overlay icon, not the current purple cube
+    - Cursor on menu feels laggy; could that run at a higher frame rate?
+    - Matcap misaligned, feels like its lit from below
+    - Menu layout is clunky
+    - Jump between passthrough (AR) and immersive (VR) modes is janky
+    - UX for importing meshes is clunky (forced back into 2d mode to get standard browser import dialog)
+    - Map shortcuts to other buttons, eg thumbstick for undo/redo
+    - Double handed grip needs work, gets hard to control when the world has been scaled too large
+
 
 
 ## Long Term Goals / Vision
