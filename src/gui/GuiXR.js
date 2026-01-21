@@ -86,13 +86,33 @@ class GuiXR {
   setCursor(u, v) {
     if (u < 0) {
       this._cursor.active = false;
+      this._hoverWidget = null;
     } else {
       this._cursor.active = true;
       this._cursor.x = u * this._canvas.width;
       this._cursor.y = v * this._canvas.height;
+      this._updateHover();
     }
     this._needsUpdate = true;
     this.draw();
+  }
+
+  _updateHover() {
+    if (!this._cursor.active) {
+      this._hoverWidget = null;
+      return;
+    }
+    const cx = this._cursor.x;
+    const cy = this._cursor.y;
+    // Check Widgets
+    const widgets = this._getWidgets();
+    this._hoverWidget = null;
+    for (let wid of widgets) {
+      if (cx >= wid.x && cx <= wid.x + wid.w && cy >= wid.y && cy <= wid.y + wid.h) {
+        this._hoverWidget = wid;
+        return;
+      }
+    }
   }
 
   _getWidgets() {
@@ -168,7 +188,15 @@ class GuiXR {
 
     if (w.type === 'slider') return; // Sliders handled by onInteract
 
+    if (w.type === 'slider') return; // Sliders handled by onInteract
+
     this._executeAction(w);
+
+    // VISUAL FEEDBACK
+    this._lastClick = performance.now();
+    this._clickedWidget = w;
+    setTimeout(() => { this._needsUpdate = true; this.draw(); }, 250); // Redraw to clear flash
+
     this._needsUpdate = true;
     this.draw();
 
@@ -357,6 +385,11 @@ class GuiXR {
       // Draw active background
       ctx.fillStyle = isActive ? '#00A040' : '#444';
       if (wid.type === 'slider') ctx.fillStyle = '#555';
+
+      // Click Flash
+      if (this._clickedWidget === wid && this._lastClick && (performance.now() - this._lastClick < 200)) {
+        ctx.fillStyle = '#fff';
+      }
 
       ctx.fillRect(wid.x, wid.y, wid.w, wid.h);
 
