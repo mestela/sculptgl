@@ -34,7 +34,8 @@ It should work on any WebXR compatible device. So far I've tested on
     - Rendering modes: Matcap, PBR, Wireframe, Flat Shading
     - Brush Indicator (Cursor) restored in VR
     - symmetry
-    - Import/Export
+    - Export OBJ (will save to Downloads)
+    - Import OBJ (will jump out of fullscreen mode and open a file browser)
     - Dynamic Topology (Experimental)
 
 ## Todo
