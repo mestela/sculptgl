@@ -59,7 +59,8 @@ class Picking {
 
   getAlpha(x, y, z) {
     var alpha = this._alpha;
-    if (!alpha || !alpha._texture || this._main._xrSession) return 1.0;
+    // VR Fix: Allow alpha calculation to proceed so we get Symmetry Masking (xn > 1.0 checks)
+    if (!alpha || !alpha._texture) return 1.0;
 
     var m = this._alphaLookAt;
     var rs = this._alphaSide;
