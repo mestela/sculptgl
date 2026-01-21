@@ -39,7 +39,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - Dynamic Topology (Experimental)
 
 ## Todo
-- ** Functionality **:
+- **Functionality**:
     - Multiresolution not yet supported in VR
     - Can't change matcaps or PBR environment (need combobox UI element)
     - Add primitives menu missing
@@ -47,7 +47,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - Symmetry with move tool buggy (other brush based tools are ok)
     - Lots of 'minor' UI missing (need to take an inventory of all the menu items)
     - Voxel brush
-- ** UI + UX **  
+- **UI + UX**  
     - Menu draws over controllers, it should correctly place itself in depth against controllers/the mesh
     - Default brush size too large
     - Controllers are represented with cubes, replace with something better    
