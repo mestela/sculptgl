@@ -220,12 +220,12 @@
         <canvas id='canvas'></canvas>
     </div>
 
-    <!-- Hidden inputs expected by SculptGL -->
-    <input type='file' id='fileopen' multiple style='display: none' />
-    <input type='file' id='backgroundopen' style='display: none' />
-    <input type='file' id='alphaopen' style='display: none' />
-    <input type='file' id='textureopen' style='display: none' />
-    <input type='file' id='matcapopen' style='display: none' />
+    <!-- Hidden inputs expected by SculptGL (Opacity 0 to avoid display:none blocking) -->
+    <input type='file' id='fileopen' multiple style='opacity: 0; position: absolute; pointer-events: none; z-index: -1;' />
+    <input type='file' id='backgroundopen' style='opacity: 0; position: absolute; pointer-events: none; z-index: -1;' />
+    <input type='file' id='alphaopen' style='opacity: 0; position: absolute; pointer-events: none; z-index: -1;' />
+    <input type='file' id='textureopen' style='opacity: 0; position: absolute; pointer-events: none; z-index: -1;' />
+    <input type='file' id='matcapopen' style='opacity: 0; position: absolute; pointer-events: none; z-index: -1;' />
 
     <!-- GLOBAL ERROR HANDLER (Non-Module) -->
     <script>
@@ -276,7 +276,7 @@
 
 
                                                                                                                                                                                                                                                             // Show version on screen
-                                                                                                                                                                                                                                                                if (window.screenLog) window.screenLog("VERSION: v0.5.19 - Code Applied", "lime");
+                                                                                                                                                                                                                                                                if (window.screenLog) window.screenLog("VERSION: v0.5.20 - Fix Import Visibility", "lime");
 
             // Check HTTPS
             if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
