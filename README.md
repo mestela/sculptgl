@@ -25,8 +25,8 @@ It should work on any WebXR compatible device. So far I've tested on
 - **Interaction**:
     - **VR Tablet Menu**: UI moved to a palette on the left controller
     - **Two-Handed Navigation**:
-        - Single Grip: Translate world
-        - Double Grip: Scale and Rotate world
+        - Single Grip: Translate world, rotate around controller
+        - Double Grip: Scale and Rotate world from midpoint of controllers
     - Ray-casting support for UI interaction
 - **Sculpting & Rendering**:
     - Most brushes are fully functional
@@ -34,16 +34,16 @@ It should work on any WebXR compatible device. So far I've tested on
     - Rendering modes: Matcap, PBR, Wireframe, Flat Shading
     - Brush Indicator (Cursor) restored in VR
     - symmetry
+    - Import/Export
+    - Dynamic Topology (Experimental)
 
 ## Todo
-- **Saving/Loading**: File I/O (Export/Import) is not yet implemented in VR (See [Research Notes](docs/vr_file_io_research.md))
-- Dynamic Topology disabled (likely too performance-heavy for standalone Quest 3)
+- [ ] Multiresolution Not yet supported in VR
 - Multiresolution Not yet supported in VR
 - No UI to switch between Matcaps or PBR environments yet
 - Cannot add new primitives or import meshes in VR
 - Controllers are represeted with cubes, should replace with something better
 - Menu draws over controllers, it should correctly place itself in depth against controllers/the smesh
-- Add rotate to single handed grip, pivot should be where the controller is
 - Double handed grip needs work, gets hard to control when the world has been scaled too large
 - Two-handed-grip pivot point needs an overlay icon, not the current purple cube
 - Cursor on menu feels laggy; could that run at a higher frame rate?
@@ -52,7 +52,7 @@ It should work on any WebXR compatible device. So far I've tested on
 - Matcap misaligned, feels like its lit from below
 - Menu layout is clunky
 - Map shortcuts to other buttons, eg thumbstick for undo/redo
-
+- Voxel brush
 
 
 ## Long Term Goals / Vision

@@ -302,9 +302,11 @@ class SculptGL extends Scene {
     event.stopPropagation();
     event.preventDefault();
     var files = event.dataTransfer ? event.dataTransfer.files : event.target.files;
+    if (window.screenLog) window.screenLog(`Files detected: ${files.length}`, "yellow");
     for (var i = 0, nb = files.length; i < nb; ++i) {
       var file = files[i];
       var fileType = this.getFileType(file.name);
+      if (window.screenLog) window.screenLog(`Reading: ${file.name} (${fileType})`, "yellow");
       this.readFile(file, fileType);
     }
   }
@@ -317,6 +319,7 @@ class SculptGL extends Scene {
     var reader = new FileReader();
     var self = this;
     reader.onload = function (evt) {
+      if (window.screenLog) window.screenLog(`File Read Complete: ${file.name.slice(0, 10)}...`, "lime");
       self.loadScene(evt.target.result, fileType);
       document.getElementById('fileopen').value = '';
     };

@@ -92,8 +92,8 @@ class Scene {
     this._vrScale = 0.99; // Calibrated scale
 
     this._vrGrip = {
-      left: { active: false, startPoint: vec3.create() },
-      right: { active: false, startPoint: vec3.create() }
+      left: { active: false, startPoint: vec3.create(), startRot: quat.create() },
+      right: { active: false, startPoint: vec3.create(), startRot: quat.create() }
     };
 
     this._vrTwoHanded = {
@@ -1264,11 +1264,6 @@ class Scene {
         // Grip Button (Button 1 or Trigger/Squeeze?)
         // Usually Button 1 is Squeeze. Button 0 is Trigger.
         const isGrip = source.gamepad && source.gamepad.buttons[1] && source.gamepad.buttons[1].pressed;
-        
-        // DEBUG: Grip Logging (Throttle)
-        // if (window.screenLog && isGrip && Math.random() < 0.02) {
-        //    window.screenLog(`Grip Active: ${source.handedness}`, "cyan");
-        // }
 
         const rot = basePose.transform.orientation; // Quaternion {x,y,z,w}
         const rotQuat = quat.fromValues(rot.x, rot.y, rot.z, rot.w);
@@ -1332,11 +1327,17 @@ class Scene {
         this._vrGrip.right.active = false;
       } else {
         // Standard Single Grip
-        if (leftGrip && leftOrigin && leftRot) this.processVRGripState('left', leftOrigin, leftRot);
-        else this._vrGrip.left.active = false;
+        if (leftGrip && leftOrigin && leftRot) {
+          this.processVRGripState('left', leftOrigin, leftRot);
+        } else {
+          this._vrGrip.left.active = false;
+        }
 
-        if (rightGrip && rightOrigin && rightRot) this.processVRGripState('right', rightOrigin, rightRot);
-        else this._vrGrip.right.active = false;
+        if (rightGrip && rightOrigin && rightRot) {
+          this.processVRGripState('right', rightOrigin, rightRot);
+        } else {
+          this._vrGrip.right.active = false;
+        }
       }
     }
   }
@@ -1347,7 +1348,6 @@ class Scene {
       gState.active = true;
       vec3.copy(gState.startPoint, origin);
       quat.copy(gState.startRot, rotation);
-      if (window.screenLog) window.screenLog(`Grip Start: ${handedness}`, "lime");
     } else {
       // Delta in Base Space approx World Space delta if orientation aligned
       const delta = vec3.create();
@@ -1367,11 +1367,7 @@ class Scene {
         quat.multiply(qDelta, rotation, qInv); // Current * InvStart = Delta
 
         // Threshold for jitter (Rotation) - ~0.1 degree
-        // w component of small delta quat is close to 1.0. 
-        // 1.0 - 0.999998 is very small.
         if (Math.abs(qDelta[3] - 1.0) > 0.000001) {
-          // DEBUG ROTATION
-          // if (window.screenLog && this._logThrottle % 20 === 0) window.screenLog(`Rot Delta: ${qDelta[3]}`, "white");
           this.rotateWorld(qDelta, origin); // Pivot around HAND (origin)
           quat.copy(gState.startRot, rotation);
         }
@@ -1430,24 +1426,6 @@ class Scene {
       // }
       this.updateDebugPivot(mid, true);
     }
-  }
-
-  scaleWorld(ratio, pivot) {
-    this._vrScale *= ratio;
-
-    // Pivot Lock: If scaling around the origin (0,0,0), skip position math
-    if (vec3.length(pivot) < 0.0001) return;
-
-    if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: 0 });
-
-    let pos = vec3.fromValues(this._xrWorldOffset.position.x, this._xrWorldOffset.position.y, this._xrWorldOffset.position.z);
-    let diff = vec3.create();
-    vec3.sub(diff, pos, pivot);
-    vec3.scale(diff, diff, 1.0 / ratio);
-    vec3.add(pos, pivot, diff);
-
-    this._xrWorldOffset = new XRRigidTransform({ x: pos[0], y: pos[1], z: pos[2] }, this._xrWorldOffset.orientation);
-    this.updateVROffsets();
   }
 
   rotateWorld(qDelta, pivot) {

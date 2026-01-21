@@ -1,6 +1,7 @@
 import Enums from 'misc/Enums';
 import TR from 'gui/GuiTR';
 import Export from 'files/Export';
+import { saveAs } from 'file-saver';
 import Shader from 'render/ShaderLib';
 
 const TAB_HEIGHT = 60;
@@ -42,7 +43,9 @@ class GuiXR {
         { type: 'button', id: Enums.Tools.DRAG, label: 'Drag', x: 20, y: 370, w: 100, h: 40 },
         { type: 'button', id: Enums.Tools.MOVE, label: 'Move', x: 130, y: 370, w: 100, h: 40 },
         { type: 'button', id: Enums.Tools.PAINT, label: 'Paint', x: 20, y: 420, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.MASKING, label: 'Mask', x: 130, y: 420, w: 100, h: 40 }
+        { type: 'button', id: Enums.Tools.MASKING, label: 'Mask', x: 130, y: 420, w: 100, h: 40 },
+        // Dynamic Topology Toggle
+        { type: 'toggle', id: 'dynamic', label: 'Dynamic Topology', x: 20, y: 470, w: 210, h: 40 }
       ],
       'VIEW': [
         { type: 'toggle', id: 'flat', label: 'Flat Shading', x: 20, y: 150, w: 200, h: 50 },
@@ -56,6 +59,7 @@ class GuiXR {
       'FILES': [
         { type: 'button', id: 'reset', label: 'Reset Scene', x: 20, y: 80, w: 200, h: 50 },
         { type: 'button', id: 'export_obj', label: 'Export OBJ', x: 20, y: 150, w: 200, h: 50 },
+        { type: 'button', id: 'import_obj', label: 'Import OBJ', x: 220, y: 150, w: 200, h: 50 },
         { type: 'button', id: 'export_stl', label: 'Export STL', x: 20, y: 220, w: 200, h: 50 },
         { type: 'info', label: 'Files save to browser', x: 20, y: 300 }
       ],
@@ -166,6 +170,12 @@ class GuiXR {
       if (w.type === 'button') {
         main.getSculptManager().setToolIndex(w.id);
       }
+      if (w.id === 'dynamic') {
+        // Reuse existing GuiTopology logic
+        if (main._gui && main._gui._ctrlTopology) {
+          main._gui._ctrlTopology.dynamicToggleActivate();
+        }
+      }
     }
 
     // VIEW TAB
@@ -225,8 +235,25 @@ class GuiXR {
           main.clearScene();
           }
         }
-      if (w.id === 'export_obj') Export.exportOBJ(main);
+      if (w.id === 'export_obj') {
+        if (window.screenLog) window.screenLog("Exporting OBJ...", "yellow");
+
+        // Export.exportOBJ signature: (meshes, colorZbrush, colorAppend)
+        const meshes = main.getMeshes();
+        const rawBlob = Export.exportOBJ(meshes, true, false);
+        // Reslice with correct type to avoid .txt extension
+        const blob = new Blob([rawBlob], { type: 'model/obj' });
+        saveAs(blob, 'sculptgl_vr_export.obj');
+        if (window.screenLog) window.screenLog("Saved to Downloads", "lime");
+      }
       if (w.id === 'export_stl') Export.exportSTL(main);
+      if (w.id === 'import_obj') {
+        if (window.screenLog) window.screenLog("Importing...", "yellow");
+        // Trigger the hidden file input
+        const fileInput = document.getElementById('fileopen');
+        if (fileInput) fileInput.click();
+        else if (window.screenLog) window.screenLog("ERR: #fileopen not found", "red");
+      }
     }
   }
 
@@ -300,6 +327,10 @@ class GuiXR {
       // Determine active state for toggles/buttons
       if (this._activeTab === 'TOOLS' && wid.type === 'button') {
         isActive = (wid.id === activeTool);
+      }
+      // Highlight Dynamic Toggle
+      if (this._activeTab === 'TOOLS' && wid.id === 'dynamic') {
+        isActive = (mesh && mesh.isDynamic);
       }
       if (this._activeTab === 'VIEW') {
         if (wid.id === 'wireframe' && mesh) isActive = mesh.getShowWireframe();
