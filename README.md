@@ -4,7 +4,7 @@
 **Active Development**: This is a fork of [SculptGL](http://stephaneginier.com/sculptgl) focused on adding WebXR capabilities, specifically a VR Menu system.
 (The original project is no longer actively maintained by the author).
 
-**[Try the Live VR Build Here](https://tokeru.com/sculptgl-vr/)**
+**[Try the Live VR Build Here](https://tokeru.com/sculptgl-vr/)** v0.5.22, now has better symmetry, basic file IO, single grip can translate and rotate. 
 
 ![SculptGL VR Screenshot](assets/sculptgl_vr.webp)
 *SculptGL running on desktop, with SculptGL-VR running natively on a Quest 3 in foreground in AR/passthrough mode.*
@@ -23,7 +23,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - **Native Quest 2/3 Support**: Includes AR Passthrough mode (select it from the view menu, there's a noticable pause/glitch when it swaps)
     - Render ported to webXR
 - **Interaction**:
-    - **VR Tablet Menu**: UI moved to a palette on the left controller
+    - **VR Tablet Menu**: UI moved to a palette on the left controller, basic butttons, toggles, sliders
     - **Two-Handed Navigation**:
         - Single Grip: Translate world, rotate around controller
         - Double Grip: Scale and Rotate world from midpoint of controllers
@@ -39,19 +39,19 @@ It should work on any WebXR compatible device. So far I've tested on
     - Dynamic Topology (Experimental)
 
 ## Todo
-- [ ] Multiresolution Not yet supported in VR
 - Multiresolution Not yet supported in VR
 - No UI to switch between Matcaps or PBR environments yet
-- Cannot add new primitives or import meshes in VR
-- Controllers are represeted with cubes, should replace with something better
+- Cannot add new primitives in VR
+- Controllers are represented with cubes, should replace with something better
 - Menu draws over controllers, it should correctly place itself in depth against controllers/the smesh
 - Double handed grip needs work, gets hard to control when the world has been scaled too large
 - Two-handed-grip pivot point needs an overlay icon, not the current purple cube
 - Cursor on menu feels laggy; could that run at a higher frame rate?
-- Visual indicator for 'click' buttons like undo/redo
-- Using symmetry near the mirror plan causes issues, easy to lose overall symmetry
+- Using symmetry near the mirror plan causes issues with move tool (other brush based tools are ok now)
 - Matcap misaligned, feels like its lit from below
 - Menu layout is clunky
+- Jump between passthrough (AR) and immersive (VR) modes is janky
+- UX for importing meshes is clunky (forced back into 2d mode to get standard browser import dialog)
 - Map shortcuts to other buttons, eg thumbstick for undo/redo
 - Voxel brush
 
