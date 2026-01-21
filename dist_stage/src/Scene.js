@@ -129,6 +129,13 @@ class Scene {
 
     this.loadTextures();
     this._gui.initGui();
+    this.loadTextures();
+    this._gui.initGui();
+
+    // Always Init GuiXR (Menu System)
+    if (!this._guiXR) this._guiXR = new GuiXR(this);
+    this._guiXR.init(this._gl);
+
     this.onCanvasResize();
 
     var modelURL = getOptionsURL().modelurl;
@@ -859,6 +866,12 @@ class Scene {
   enterXR(session) {
     this._xrSession = session;
     session.addEventListener('end', this.onXREnd.bind(this));
+
+    this._xrSession = session;
+    session.addEventListener('end', this.onXREnd.bind(this));
+
+    // Force Init Controllers & Menu IMMEDIATELY
+    this.initVRControllers();
 
     const gl = this._gl;
 

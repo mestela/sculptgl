@@ -532,9 +532,16 @@ class SculptGL extends Scene {
 
       // TRUSTED EVENT LISTENER for File I/O
       session.addEventListener('select', (event) => {
+        if (window.screenLog) window.screenLog("XR SELECT Event Fired", "lime");
+        console.log("XR SELECT Event Fired", event);
+
         // Trigger GuiXR Select
         if (this._scene && this._scene._guiXR) {
+          console.log("Delegating to GuiXR.onClick");
           this._scene._guiXR.onClick();
+        } else {
+          console.error("GuiXR not found in Scene", this._scene);
+          if (window.screenLog) window.screenLog("GuiXR Missing!", "red");
         }
       });
 
