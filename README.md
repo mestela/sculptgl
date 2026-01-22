@@ -1,10 +1,10 @@
-# SculptGL - VR Enhanced Fork
+# SculptVR - WebXR Sculpting
 
 ## Status
 **Active Development**: This is a fork of [SculptGL](http://stephaneginier.com/sculptgl) focused on adding WebXR capabilities, specifically a VR Menu system.
 (The original project is no longer actively maintained by the author).
 
-**[Try the Live VR Build Here](https://tokeru.com/sculptgl-vr/)** 
+**[Try the Live VR Build Here](https://tokeru.com/sculptvr/)** 
 
 ## Releases
  - v0.5.52: matcap material fix for VR, no longer rotates on head tilt

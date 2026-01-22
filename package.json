@@ -1,6 +1,6 @@
 {
-  "name": "SculptGL",
-  "homepage": "https://github.com/stephomi/sculptgl",
+  "name": "sculptvr",
+  "homepage": "https://github.com/mestela/sculptvr",
   "version": "0.9.0",
   "description": "A WebGL digital sculpting app",
   "author": "Stéphane GINIER",
@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/stephomi/sculptgl.git"
+    "url": "https://github.com/mestela/sculptvr.git"
   },
   "bugs": {
     "url": "https://github.com/stephomi/sculptgl/issues"
