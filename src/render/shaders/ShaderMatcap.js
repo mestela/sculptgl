@@ -1,5 +1,6 @@
 import TR from 'gui/GuiTR';
 import ShaderBase from 'render/shaders/ShaderBase';
+import { mat3, mat4 } from 'gl-matrix';
 
 var ShaderMatcap = ShaderBase.getCopy();
 ShaderMatcap.vertexName = ShaderMatcap.fragmentName = 'Matcap';
@@ -48,7 +49,7 @@ ShaderMatcap.matcaps = [{
 ShaderMatcap.uniforms = {};
 ShaderMatcap.attributes = {};
 
-ShaderMatcap.uniformNames = ['uTexture0', 'uAlbedo'];
+ShaderMatcap.uniformNames = ['uTexture0', 'uAlbedo', 'uRotCorrection'];
 Array.prototype.push.apply(ShaderMatcap.uniformNames, ShaderBase.uniformNames.commonUniforms);
 
 ShaderMatcap.vertex = [
@@ -87,21 +88,15 @@ ShaderMatcap.fragment = [
   'varying vec3 vNormal;',
   'varying vec3 vColor;',
   'uniform float uAlpha;',
+  'uniform mat3 uRotCorrection;', // Stabilizes normals to Horizon
   ShaderBase.strings.fragColorUniforms,
   ShaderBase.strings.fragColorFunction,
   'void main() {',
-  '  vec3 normal = getNormal();',
-  '  vec3 nm_z = normalize(vVertexPres);', // View Direction
-  '  vec3 nm_x = vec3(-nm_z.z, 0.0, nm_z.x);', // Old logic... wait.
-  // Standard Matcap is much simpler:
-  // vec2 texCoord = normal.xy * 0.5 + 0.5; (If normal is View Space)
-  // But our 'normal' is World Space (technically ModelView is applied).
-  // uMV is View Matrix * Model Matrix.
-  // So 'vNormal' is in View Space.
-  // So standard mapping is just:
+  '  // Stabilize Normal: Transform View Space Normal -> Billboard Space Normal',
+  '  vec3 normal = normalize(uRotCorrection * vNormal);',
+  '  ',
   '  vec2 texCoord = normal.xy * 0.5 + 0.5;',
-  '  // Flip Y if needed (usually textures are flipped)',
-  // texCoord.y = 1.0 - texCoord.y; 
+  '  texCoord.y = 1.0 - texCoord.y;', // Flip Y
   '  vec3 color = sRGBToLinear(texture2D(uTexture0, texCoord).rgb) * sRGBToLinear(vColor);',
   '  gl_FragColor = encodeFragColor(color, uAlpha);',
   '}'
@@ -116,8 +111,99 @@ ShaderMatcap.updateUniforms = function (mesh, main) {
   gl.bindTexture(gl.TEXTURE_2D, mesh.getTexture0() || this.getDummyTexture(gl));
   gl.uniform1i(uniforms.uTexture0, 0);
 
+  // --- Compute Billboard Stabilization Matrix ---
+  // Goal: Aim Matcap at the viewer's POSITION, ignoring Head Rotation.
+  // This ensures the lighting "Look" vector follows the viewer (yaw) but doesn't roll/pitch with the head.
+
+  if (!this._cacheMats) {
+    this._cacheMats = {
+      viewInv: mat4.create(),
+      camBasis: mat3.create(),
+      stabBasis: mat3.create(),
+      corrMat: mat3.create()
+    };
+  }
+  const mats = this._cacheMats;
+  const view = main.getCamera().getView();
+
+  // 1. Get Camera World Matrix (Inverse View)
+  mat4.invert(mats.viewInv, view);
+
+  // 2. Extract Camera Position (World Space) and use it as Forward Vector
+  // We assume the object is at (0,0,0) (common in SculptGL/VR focus).
+  // Ideally we'd use (CameraPos - ModelPos), but ModelPos varies.
+  // Using CameraPos as the "Look Vector" is a robust approximation for "Billboard aiming".
+  const cx = mats.viewInv[12];
+  const cy = mats.viewInv[13];
+  const cz = mats.viewInv[14];
+
+  // Back Vector = Normalize(CameraPos - Origin)
+  // This aims the Matcap at the viewer's *Position*.
+  let len = Math.sqrt(cx * cx + cy * cy + cz * cz);
+  let bx, by, bz;
+  if (len < 0.001) {
+    // User inside object? Use Camera Back as fallback.
+    bx = mats.viewInv[8]; by = mats.viewInv[9]; bz = mats.viewInv[10];
+  } else {
+    bx = cx / len; by = cy / len; bz = cz / len;
+  }
+
+  // 3. Construct Stabilized Basis (Billboard)
+  // We keep 'Back' (Aim at Viewer), and force 'Right' to be horizontal.
+  // Right = Cross(WorldUp, Back) = Cross((0,1,0), B) = (bz, 0, -bx)
+  let srx = bz;
+  let sry = 0.0;
+  let srz = -bx;
+
+  // Normalize Right
+  len = Math.sqrt(srx * srx + srz * srz);
+  if (len < 0.001) {
+    // Looking from top/bottom. Fallback to Camera Right.
+    srx = mats.viewInv[0]; sry = mats.viewInv[1]; srz = mats.viewInv[2];
+  } else {
+    srx /= len; srz /= len;
+  }
+
+  // Up = Cross(Back, Right)
+  // B x SR
+  const sux = by * srz - bz * sry;
+  const suy = bz * srx - bx * srz;
+  const suz = bx * sry - by * srx;
+
+  // 4. Compute Correction Rotation
+  // We want to transform Normal_View -> Normal_Stab
+  // Normal_World = CamBasis * Normal_View
+  // Normal_World = StabBasis * Normal_Stab  =>  Normal_Stab = StabBasis^T * Normal_World
+  // Normal_Stab = StabBasis^T * (CamBasis * Normal_View)
+  // Correction = StabBasis^T * CamBasis
+
+  // Extract View Rotation Submatrix (CamBasis)
+  // This represents the Actual Camera Rotation
+  const rx = mats.viewInv[0], ry = mats.viewInv[1], rz = mats.viewInv[2];
+  const ux = mats.viewInv[4], uy = mats.viewInv[5], uz = mats.viewInv[6];
+  const cbx = mats.viewInv[8], cby = mats.viewInv[9], cbz = mats.viewInv[10];
+
+  const C = mats.camBasis;
+  C[0] = rx; C[1] = ry; C[2] = rz;
+  C[3] = ux; C[4] = uy; C[5] = uz;
+  C[6] = cbx; C[7] = cby; C[8] = cbz;
+
+  // Fill StabBasis (Col-Major)
+  // This represents our Ideal Billboard Rotation
+  const S = mats.stabBasis;
+  S[0] = srx; S[1] = sry; S[2] = srz;
+  S[3] = sux; S[4] = suy; S[5] = suz;
+  S[6] = bx; S[7] = by; S[8] = bz;
+
+  // Correction = Transpose(S) * C
+  mat3.transpose(S, S); // Invert S
+  mat3.mul(mats.corrMat, S, C);
+
+  gl.uniformMatrix3fv(uniforms.uRotCorrection, false, mats.corrMat);
+
   gl.uniform3fv(uniforms.uAlbedo, mesh.getAlbedo());
   ShaderBase.updateUniforms.call(this, mesh, main);
+
 };
 
 export default ShaderMatcap;

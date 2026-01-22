@@ -4,7 +4,12 @@
 **Active Development**: This is a fork of [SculptGL](http://stephaneginier.com/sculptgl) focused on adding WebXR capabilities, specifically a VR Menu system.
 (The original project is no longer actively maintained by the author).
 
-**[Try the Live VR Build Here](https://tokeru.com/sculptgl-vr/)** v0.5.22, now has better symmetry, basic file IO, single grip can translate and rotate. 
+**[Try the Live VR Build Here](https://tokeru.com/sculptgl-vr/)** 
+
+## Releases
+ - v0.5.52: matcap material fix for VR, no longer rotates on head tilt
+ - v0.5.43: fixed move symmetry, thumbstick shortcuts, menu interaction
+ - v0.5.22: better symmetry, basic file IO, single grip can translate and rotate. 
 
 ![SculptGL VR Screenshot](assets/sculptgl_vr.webp)
 *SculptGL running on desktop, with SculptGL-VR running natively on a Quest 3 in foreground in AR/passthrough mode.*
@@ -45,7 +50,6 @@ It should work on any WebXR compatible device. So far I've tested on
     - Can't change matcaps or PBR environment (need combobox UI element)
     - Add primitives menu missing
     - Transform tool/gizmo missing
-    - Symmetry with move tool buggy (other brush based tools are ok)
     - Lots of 'minor' UI missing (need to take an inventory of all the menu items)
     - Voxel brush
 - **UI + UX**  
@@ -53,7 +57,6 @@ It should work on any WebXR compatible device. So far I've tested on
     - Controllers are represented with cubes, replace with something better    
     - Two-handed-grip pivot point needs an overlay icon, not the current purple cube
     - Cursor on menu feels laggy; could that run at a higher frame rate?
-    - Matcap misaligned, feels like its lit from below
     - Menu layout is clunky
     - Jump between passthrough (AR) and immersive (VR) modes is janky
     - UX for importing meshes is clunky (forced back into 2d mode to get standard browser import dialog)
