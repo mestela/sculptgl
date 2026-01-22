@@ -219,30 +219,37 @@ class Move extends SculptBase {
 
     // Apply Local Delta to Primary
     const moveData = this._moveData;
-    // Reset vertices to proxy (original positions) before applying new delta
 
-    // Reset vertices to proxy (original positions) - GROUPED to avoid overwriting moves!
+    // 1. RESTORE PHASE: Reset all affected vertices to original positions
+    // We must do ALL restores before ANY moves to handle overlapping vertices correctly.
+    
+    // Restore Primary
     this.copyVerticesProxy(picking, moveData);
 
-    // Apply Local Delta to Primary
+    // Restore Symmetry
+    var pickingSym = main.getPickingSymmetry();
+    const useSym = main.getSculptManager().getSymmetry() && pickingSym.getMesh();
+    
+    if (useSym) {
+        const moveDataSym = this._moveDataSym;
+        if (moveDataSym.iVerts) {
+            this.copyVerticesProxy(pickingSym, moveDataSym);
+        }
+    }
+
+    // 2. MOVE PHASE: Apply deltas
+    
+    // Apply Primary Move
     if (moveData.iVerts) {
        vec3.sub(moveData.dir, vCurrLocal, vStartLocal); 
        this.move(moveData.iVerts, moveData.center, picking.getLocalRadius2(), moveData, picking);
     }
 
-    // Apply Local Delta to Symmetry
-    var pickingSym = main.getPickingSymmetry();
-    if (main.getSculptManager().getSymmetry() && pickingSym.getMesh()) {
+    // Apply Symmetry Move
+    if (useSym) {
         const moveDataSym = this._moveDataSym;
         if (moveDataSym.iVerts) {
-          // Reset Symmetry verts (safe even if overlap, because we haven't properly accumulated yet if we do it right, 
-          // BUT Standard Move does Reset P, Reset S, then Move P, Move S.
-          // If I do Reset P, Move P, Reset S, Move S -> Reset S UNDOES Move P!
-          // So I MUST do Reset P, Reset S, Move P, Move S OR Reset P, Reset S (accumulate), Move P, Move S.
-          // Since copyVerticesProxy overwrites vAr with vProxy, it MUST be done BEFORE any move touches vAr for that frame.
-            this.copyVerticesProxy(pickingSym, moveDataSym);
-
-          // NOW we can calculate and apply symmetry delta (which will ADD to vAr)
+            // Calculate and apply symmetry delta
             vec3.copy(moveDataSym.dir, moveData.dir);
             moveDataSym.dir[0] = -moveDataSym.dir[0]; // Mirror X Delta
             

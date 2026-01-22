@@ -1342,7 +1342,7 @@ class Scene {
           const hit = this._vrMenu.intersect(origin, dir);
           if (hit) {
             this._isPointingAtMenu = true;
-            if (window.screenLog) window.screenLog("Menu Intersect: TRUE", "cyan");
+            // if (window.screenLog) window.screenLog("Menu Intersect: TRUE", "cyan");
             this._guiXR.setCursor(hit.uv[0], hit.uv[1]);
 
             // Interact if Trigger Pressed (Button 0)
@@ -1606,10 +1606,10 @@ class Scene {
 
     // DEBUG LOG: Verify this logic
     if (this._isPointingAtMenu) {
-      if (window.screenLog) window.screenLog("SCULPT BLOCKED (Menu Hit)", "lime");
+      // if (window.screenLog) window.screenLog("SCULPT BLOCKED (Menu Hit)", "lime");
       return;
     } else {
-      if (window.screenLog && source.gamepad.buttons[0].pressed) window.screenLog("SCULPT ALLOWED (No Menu Hit)", "red");
+      // if (window.screenLog && source.gamepad.buttons[0].pressed) window.screenLog("SCULPT ALLOWED (No Menu Hit)", "red");
     }
 
     // 3. Picking (Engine Space Units)

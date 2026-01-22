@@ -28,6 +28,7 @@ It should work on any WebXR compatible device. So far I've tested on
         - Single Grip: Translate world, rotate around controller
         - Double Grip: Scale and Rotate world from midpoint of controllers
     - Ray-casting support for UI interaction
+    - Thumbstick left/right for undo/redo, up/down for brush size
 - **Sculpting & Rendering**:
     - Most brushes are fully functional
     - Undo/Redo supported
@@ -49,7 +50,6 @@ It should work on any WebXR compatible device. So far I've tested on
     - Voxel brush
 - **UI + UX**  
     - Menu draws over controllers, it should correctly place itself in depth against controllers/the mesh
-    - Default brush size too large
     - Controllers are represented with cubes, replace with something better    
     - Two-handed-grip pivot point needs an overlay icon, not the current purple cube
     - Cursor on menu feels laggy; could that run at a higher frame rate?
@@ -57,7 +57,6 @@ It should work on any WebXR compatible device. So far I've tested on
     - Menu layout is clunky
     - Jump between passthrough (AR) and immersive (VR) modes is janky
     - UX for importing meshes is clunky (forced back into 2d mode to get standard browser import dialog)
-    - Map shortcuts to other buttons, eg thumbstick for undo/redo
     - Double handed grip needs work, gets hard to control when the world has been scaled too large
 
 
