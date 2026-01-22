@@ -101,7 +101,7 @@ ShaderMatcap.fragment = [
   // So standard mapping is just:
   '  vec2 texCoord = normal.xy * 0.5 + 0.5;',
   '  // Flip Y if needed (usually textures are flipped)',
-  '  texCoord.y = 1.0 - texCoord.y;', 
+  // texCoord.y = 1.0 - texCoord.y; 
   '  vec3 color = sRGBToLinear(texture2D(uTexture0, texCoord).rgb) * sRGBToLinear(vColor);',
   '  gl_FragColor = encodeFragColor(color, uAlpha);',
   '}'

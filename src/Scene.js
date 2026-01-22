@@ -1227,6 +1227,81 @@ class Scene {
     for (const source of sources) {
       if (!source.gripSpace) continue;
 
+      if (!source.gripSpace) continue;
+
+      // VR SHORTCUTS (Right Hand Only for now)
+      if (source.handedness === 'right' && source.gamepad) {
+        // Unique Persistent State
+        if (!this._vrShortcutState) this._vrShortcutState = { axes: [] };
+        const state = this._vrShortcutState;
+        const axes = source.gamepad.axes;
+
+        // Thresholds
+        const T_PRESS = 0.7;
+        const T_RELEASE = 0.3;
+
+        // AXIS 2 (Left/Right) - Undo/Redo
+        const valX = axes[2];
+        const lastX = state.axes[2] || 0;
+
+        // State Machine: Only fire if we were neutral
+        const wasNeutralX = Math.abs(lastX) < T_RELEASE;
+        const isPressedX = Math.abs(valX) > T_PRESS;
+
+        if (wasNeutralX && isPressedX) {
+          if (valX < -T_PRESS) {
+            if (window.screenLog) window.screenLog("Shortcuts: Undo (Triggered)", "lime");
+            // Fix: Scene.js has _stateManager directly, no _main property
+            if (this._stateManager) {
+              this._stateManager.undo();
+              this._main ? this._main.render() : this.render(); // Handle both just in case, but usually this.render()
+            } else {
+              if (window.screenLog) window.screenLog("CRITICAL: _stateManager missing!", "red");
+            }
+          } else if (valX > T_PRESS) {
+            if (window.screenLog) window.screenLog("Shortcuts: Redo (Triggered)", "lime");
+            if (this._stateManager) {
+              this._stateManager.redo();
+              this._main ? this._main.render() : this.render();
+            }
+          }
+        }
+        state.axes[2] = valX;
+
+        // AXIS 3 (Up/Down) - Radius +/- 10
+        const valY = axes[3];
+        const lastY = state.axes[3] || 0;
+        const wasNeutralY = Math.abs(lastY) < T_RELEASE;
+        const isPressedY = Math.abs(valY) > T_PRESS;
+
+        if (wasNeutralY && isPressedY) {
+          let change = 0;
+          if (valY < -T_PRESS) change = 10;
+          if (valY > T_PRESS) change = -10;
+
+          if (change !== 0 && this._guiXR) {
+            const current = this._guiXR._radius * 100;
+            const next = Math.max(1, Math.min(100, current + change));
+            this._guiXR._radius = next / 100.0;
+            // Fix: Use this._sculptManager directly
+            if (this._sculptManager) this._sculptManager.getTool().setRadius(next);
+
+
+            // Update Slider
+            const widgets = this._guiXR._tabWidgets['TOOLS'];
+            if (widgets) {
+              const w = widgets.find(w => w.id === 'radius');
+              if (w) w.value = next / 100.0;
+            }
+            this._guiXR._needsUpdate = true;
+            this._guiXR.draw();
+
+            if (window.screenLog) window.screenLog(`Radius: ${next}`, "lime");
+          }
+        }
+        state.axes[3] = valY;
+      }
+
       // 1. Common Pose Gathering (for All Tasks)
       const worldPose = frame.getPose(source.gripSpace, refSpace);
       if (worldPose) {

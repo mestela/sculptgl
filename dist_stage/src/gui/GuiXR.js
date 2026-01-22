@@ -23,13 +23,13 @@ class GuiXR {
     this._activeTab = 'TOOLS';
 
     this._cursor = { x: -1, y: -1, active: false };
-    this._radius = 0.5; // Expose for VR Scene
+    this._radius = 0.25; // Expose for VR Scene
 
     // Define Widgets per Tab
     this._tabWidgets = {
       'TOOLS': [
         // Sliders
-        { type: 'slider', id: 'radius', x: 20, y: 80, w: 200, h: 40, label: 'Radius', value: 0.5 },
+        { type: 'slider', id: 'radius', x: 20, y: 80, w: 200, h: 40, label: 'Radius', value: 0.25 },
         { type: 'slider', id: 'intensity', x: 20, y: 140, w: 200, h: 40, label: 'Intensity', value: 0.5 },
         // Radius/Intensity are special, they persist their values
 
