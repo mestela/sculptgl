@@ -151,7 +151,8 @@ class GuiXR {
   _handleWidgetClick(w) {
     const now = performance.now();
     if (!this._lastClick) this._lastClick = 0;
-    // Debounce
+
+    // Allow external force updates to bypass debounce if needed, or just handle slider drag
     if (now - this._lastClick < 200 && w.type !== 'slider') return; 
 
     if (w.type === 'slider') {
@@ -170,6 +171,9 @@ class GuiXR {
             this._main.getSculptManager().getTool().setRadius(val * 100);
           }
           if (w.id === 'intensity') this._main.getSculptManager().getTool().setIntensity(val);
+
+          // Force 3D Render for immediate feedback
+          this._main.render();
         }
       }
     } else {
@@ -301,6 +305,14 @@ class GuiXR {
   click() {
     if (!this._cursor.active) return;
     this.onInteract(this._cursor.x / this._canvas.width, this._cursor.y / this._canvas.height, true);
+  }
+
+  // FORCE DRAW (Bypass Throttle)
+  forceDraw() {
+    this._lastDraw = 0;
+    this._needsUpdate = true;
+    this.draw();
+    this.updateTexture(); // Immediate upload attempt
   }
 
   draw() {
@@ -464,6 +476,19 @@ class GuiXR {
 
   getTexture() {
     return this._texture;
+  }
+
+  updateRadius(val) {
+    this._radius = val;
+    const widgets = this._getWidgets(); // Currently active tab widgets
+    // We need to find the widget in 'TOOLS' specifically if we aren't on that tab?
+    // Actually, stick to active tab or find in _tabWidgets['TOOLS']
+    const tools = this._tabWidgets['TOOLS'];
+    if (tools) {
+      const w = tools.find(w => w.id === 'radius');
+      if (w) w.value = val;
+    }
+    this.forceDraw();
   }
 }
 

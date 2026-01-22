@@ -1202,6 +1202,9 @@ class Scene {
       gl.bindFramebuffer(gl.FRAMEBUFFER, glLayer.framebuffer);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
+      // VR Menu Texture Update
+      if (this._guiXR) this._guiXR.updateTexture();
+
       // Handle Input (PoC placeholder)
       if (typeof this.handleXRInput === 'function') {
         try {
@@ -1217,6 +1220,8 @@ class Scene {
   }
 
   handleXRInput(frame, refSpace) {
+    this._isPointingAtMenu = false;
+
     const session = frame.session;
     const sources = session.inputSources;
     
@@ -1268,36 +1273,41 @@ class Scene {
         }
         state.axes[2] = valX;
 
-        // AXIS 3 (Up/Down) - Radius +/- 10
+        // AXIS 3 (Up/Down) - Radius +/- 5%
         const valY = axes[3];
-        const lastY = state.axes[3] || 0;
-        const wasNeutralY = Math.abs(lastY) < T_RELEASE;
         const isPressedY = Math.abs(valY) > T_PRESS;
 
-        if (wasNeutralY && isPressedY) {
-          let change = 0;
-          if (valY < -T_PRESS) change = 10;
-          if (valY > T_PRESS) change = -10;
+        // Timer for Repeat/Debounce
+        const now = performance.now();
+        if (!state.lastRadiusTime) state.lastRadiusTime = 0;
 
-          if (change !== 0 && this._guiXR) {
-            const current = this._guiXR._radius * 100;
-            const next = Math.max(1, Math.min(100, current + change));
-            this._guiXR._radius = next / 100.0;
-            // Fix: Use this._sculptManager directly
-            if (this._sculptManager) this._sculptManager.getTool().setRadius(next);
+        if (isPressedY) {
+          if (now - state.lastRadiusTime > 150) { // 150ms Repeat Rate
+            state.lastRadiusTime = now;
 
+            let change = 0.0;
+            if (valY < -T_PRESS) change = 0.05; // UP -> +5%
+            if (valY > T_PRESS) change = -0.05; // DOWN -> -5%
 
-            // Update Slider
-            const widgets = this._guiXR._tabWidgets['TOOLS'];
-            if (widgets) {
-              const w = widgets.find(w => w.id === 'radius');
-              if (w) w.value = next / 100.0;
+            if (change !== 0 && this._guiXR) {
+              const oldVal = this._guiXR._radius;
+              const newVal = Math.max(0.01, Math.min(1.0, oldVal + change));
+
+              if (window.screenLog) window.screenLog(`Radius: ${(oldVal * 100).toFixed(0)}% -> ${(newVal * 100).toFixed(0)}%`, "yellow");
+
+              // Use new helper to sync Widget + Texture
+              this._guiXR.updateRadius(newVal);
+
+              // Sync Tool
+              if (this._sculptManager) this._sculptManager.getTool().setRadius(newVal * 100);
+
+              // Force Render
+              this._main ? this._main.render() : this.render();
             }
-            this._guiXR._needsUpdate = true;
-            this._guiXR.draw();
-
-            if (window.screenLog) window.screenLog(`Radius: ${next}`, "lime");
           }
+        } else {
+          // Reset timer on release (optional, allows immediate press again)
+          state.lastRadiusTime = 0;
         }
         state.axes[3] = valY;
       }
@@ -1331,6 +1341,8 @@ class Scene {
 
           const hit = this._vrMenu.intersect(origin, dir);
           if (hit) {
+            this._isPointingAtMenu = true;
+            if (window.screenLog) window.screenLog("Menu Intersect: TRUE", "cyan");
             this._guiXR.setCursor(hit.uv[0], hit.uv[1]);
 
             // Interact if Trigger Pressed (Button 0)
@@ -1589,6 +1601,17 @@ class Scene {
     // CRITICAL: Update shared state for SculptBase/SculptManager parity
     this._vrControllerPos = enginePos; 
 
+    // 2.5 Menu Guard: If pointing at menu, block sculpting
+    // This requires handleXRInput to have run and set this._isPointingAtMenu
+
+    // DEBUG LOG: Verify this logic
+    if (this._isPointingAtMenu) {
+      if (window.screenLog) window.screenLog("SCULPT BLOCKED (Menu Hit)", "lime");
+      return;
+    } else {
+      if (window.screenLog && source.gamepad.buttons[0].pressed) window.screenLog("SCULPT ALLOWED (No Menu Hit)", "red");
+    }
+
     // 3. Picking (Engine Space Units)
     // Radius: Read from VR Menu (0.0 to 1.0)
     // Note: this._guiXR might be missing if not initialized, fallback to 0.15 (1.5cm) for "Spike" feel
@@ -1596,9 +1619,11 @@ class Scene {
     const physicalRadius = sliderVal * 0.1; // Map to 0-10cm physical range
     const pickingRadius = physicalRadius * invScale; 
 
-    let picked = this._picking.intersectionSphereMeshes(this._meshes, enginePos, pickingRadius);
-
     // 4. Picking State Synchronization
+    // FIX v0.5.40: Quadruple search radius (User Request)
+    // The actual sculpting radius is reset below via _rWorld2, so this only affects "snapping" range.
+    let picked = this._picking.intersectionSphereMeshes(this._meshes, enginePos, pickingRadius * 4.0);
+
     if (picked) {
       // CRITICAL FIX: The picking logic expects the squared radius in ENGINE units
       this._picking._rWorld2 = pickingRadius * pickingRadius;
@@ -1672,16 +1697,28 @@ class Scene {
       // CRITICAL: pass picking to updateXR if supported, else standard update
       // CRITICAL: pass picking to updateXR if supported, else standard update
       if (typeof this._sculptManager.updateXR === 'function') {
-      // if (window.screenLog) window.screenLog("Scene: Invoking updateXR", "blue");
         this._sculptManager.updateXR(this._picking);
       } else {
         if (window.screenLog) window.screenLog("Scene: No updateXR found!", "red");
         this._sculptManager.update();
       }
+
+      // LOGS: Throttled Picking Logs (every 200ms)
+      const now = performance.now();
+      if (!this._lastLogTime) this._lastLogTime = 0;
+      if (now - this._lastLogTime > 200 && window.screenLog) {
+        this._lastLogTime = now;
+        if (picked) {
+          const rLocal = Math.sqrt(this._picking.getLocalRadius2());
+          // window.screenLog(`PICK: YES | rLoc: ${rLocal.toFixed(3)}`, "green");
+        } else {
+          // window.screenLog(`PICK: NO | SearchRad: ${(pickingRadius * 4.0).toFixed(3)}`, "orange");
+        }
+      }
+
     } else {
       if (this._vrSculpting) {
         this._vrSculpting = false;
-
         // Deep Trace: End Stroke
         if (window.screenLog) window.screenLog("Sculpt: END STROKE", "lime");
 
@@ -1692,20 +1729,52 @@ class Scene {
 
     // 5. Debug Cursor (Visual Feedback)
     if (this.updateDebugCursor) {
+      // Use pickingRadius (Model Space) for size
+      // Default to 1cm (0.01) if undefined
+      const cursorSize = (typeof pickingRadius !== 'undefined') ? pickingRadius : 0.01;
+
       if (picked) {
         const mesh = this._picking.getMesh();
         if (mesh) {
           const localInter = this._picking.getIntersectionPoint();
           const worldInter = vec3.create();
           vec3.transformMat4(worldInter, localInter, mesh.getMatrix());
-          this.updateDebugCursor(worldInter, true);
+          this.updateDebugCursor(worldInter, true, cursorSize);
           // Yellow for Hit
           if (this._debugCursor) this._debugCursor.setFlatColor([1.0, 1.0, 0.0]);
         }
       } else {
-        // Show at Controller Tip (Red) - The Constant Probe Pattern
-        this.updateDebugCursor(enginePos, true);
+        // Show at Controller Tip (Red)
+        this.updateDebugCursor(enginePos, true, cursorSize);
         if (this._debugCursor) this._debugCursor.setFlatColor([1.0, 0.0, 0.0]);
+      }
+    }
+  }
+
+  updateDebugCursor(pos, active, radius = 0.01) {
+    if (!this._debugCursor) this.initDebugCursor();
+    if (!this._debugCursor) return;
+
+    if (active && pos) {
+      if (!this._debugCursor.isVisible()) {
+        this._debugCursor.setVisible(true);
+      }
+      var mat = this._debugCursor.getMatrix();
+      mat4.identity(mat);
+      mat4.translate(mat, mat, pos);
+      // Scale based on radius (radius is half-width, so *2 for Diameter? Or just use radius if Cube is 1.0?)
+      // Let's assume we want Diameter to represent the Brush Size.
+      // Brush Radius 5cm -> Diameter 10cm.
+      // If Cube is 1.0 unit. We scale by 0.1.
+      // So scale = radius * 2.0?
+      // Let's try direct radius first, if it's too small/big we adjust.
+      // The user complained it was "stuck" (maybe small?).
+      // Let's use radius * 2.0 to show DIAMETER.
+      const s = radius * 2.0;
+      mat4.scale(mat, mat, [s, s, s]);
+    } else {
+      if (this._debugCursor.isVisible()) {
+        this._debugCursor.setVisible(false);
       }
     }
   }
