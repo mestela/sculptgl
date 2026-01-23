@@ -90,7 +90,7 @@ class Scene {
 
     this._activeHandedness = 'right';
     this._vrScale = 0.008; // Scale 100-unit world to 0.8 meters (User Req: "25% too big")
-    this._exposure = 0.5; // Desktop Default (Darker)
+    this._exposure = 1.0; // Reset to 1.0 after fixing ShaderMerge 5x boost
 
     this._vrGrip = {
       left: { active: false, startPoint: vec3.create(), startRot: quat.create() },
@@ -325,9 +325,9 @@ class Scene {
     var gl = this._gl;
     if (!gl) return;
 
-    // VR Exposure Override
-    var oldExposure = this._exposure;
-    this._exposure = 1.0; // Standard Exposure for VR
+    // VR Exposure Override (Default 1.0 matches Desktop now)
+    // var oldExposure = this._exposure;
+    // this._exposure = 1.0; 
 
     // FBO is already bound by callee
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);

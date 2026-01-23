@@ -89,7 +89,8 @@ class Scene {
       : null;
 
     this._activeHandedness = 'right';
-    this._vrScale = 0.01; // Scale 100-unit world to 1 meter
+    this._vrScale = 0.008; // Scale 100-unit world to 0.8 meters (User Req: "25% too big")
+    this._exposure = 0.5; // Desktop Default (Darker)
 
     this._vrGrip = {
       left: { active: false, startPoint: vec3.create(), startRot: quat.create() },
@@ -315,10 +316,18 @@ class Scene {
     this._sculptManager.postRender(); // draw sculpting gizmo stuffs
   }
 
+  getExposure() {
+    return this._exposure;
+  }
+
   // Simplified VR Render (Bypassing RTT/PostProc for now)
   renderVR(glLayer, pose) {
     var gl = this._gl;
     if (!gl) return;
+
+    // VR Exposure Override
+    var oldExposure = this._exposure;
+    this._exposure = 1.0; // Standard Exposure for VR
 
     // FBO is already bound by callee
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);

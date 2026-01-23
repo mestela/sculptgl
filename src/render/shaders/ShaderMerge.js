@@ -29,13 +29,13 @@ ShaderMerge.fragment = [
   ShaderBase.strings.colorSpaceGLSL,
   'void main() {',
   '  vec4 transparent = texture2D(uTexture1, vTexCoord);',
-  '  vec3 color = decodeRGBM(texture2D(uTexture0, vTexCoord))*(1.0-transparent.a) + transparent.rgb;',
+  '  vec3 color = texture2D(uTexture0, vTexCoord).rgb * (1.0-transparent.a) + transparent.rgb;',
   // http://filmicgames.com/archives/75
   '  if(uFilmic == 1){',
   '    vec3 x = max(vec3(0.0), color - vec3(0.004));',
   '    gl_FragColor = vec4((x*(6.2*x+0.5))/(x*(6.2*x+1.7)+0.06), 1.0);',
   '  }else{',
-  '    gl_FragColor = vec4(linearTosRGB(color), 1.0);',
+  '    gl_FragColor = vec4(color, 1.0);',
   '  }',
   '}'
 ].join('\n');
