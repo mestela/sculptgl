@@ -7,9 +7,10 @@
 **[Try the Live VR Build Here](https://tokeru.com/sculptvr/)** 
 
 ## Releases
- - v0.5.52: matcap material fix for VR, no longer rotates on head tilt
- - v0.5.43: fixed move symmetry, thumbstick shortcuts, menu interaction
- - v0.5.22: better symmetry, basic file IO, single grip can translate and rotate. 
+- v0.5.60: fixed desktop exposure (removed double-gamma), calibrated VR scale (100 units = 1m), fixed initial camera offset (starting position)
+- v0.5.52: matcap material fix for VR, no longer rotates on head tilt
+- v0.5.43: fixed move symmetry, thumbstick shortcuts, menu interaction
+- v0.5.22: better symmetry, basic file IO, single grip can translate and rotate. 
 
 ![SculptGL VR Screenshot](assets/sculptgl_vr.webp)
 *SculptGL running on desktop, with SculptGL-VR running natively on a Quest 3 in foreground in AR/passthrough mode.*
@@ -22,7 +23,7 @@ It should work on any WebXR compatible device. So far I've tested on
 - Google Chrome on Windows PCVR via Meta Link and Quest 3
 
 
-## WebXR Features (What works)
+## Features
 - **Core VR/AR**:
     - Works in PCVR (accessible via Meta Link/Air Link).
     - **Native Quest 2/3 Support**: Includes AR Passthrough mode (select it from the view menu, there's a noticable pause/glitch when it swaps)
@@ -37,8 +38,9 @@ It should work on any WebXR compatible device. So far I've tested on
 - **Sculpting & Rendering**:
     - Most brushes are fully functional
     - Undo/Redo supported
-    - Rendering modes: Matcap, PBR, Wireframe, Flat Shading
+    - Rendering modes: Matcap, PBR, Wireframe, Flat Shading (Desktop/VR Exposure matched)
     - Brush Indicator (Cursor) restored in VR
+    - Correct World Scale (1.0 = 1 meter) & Comfortable Initial Camera Position
     - symmetry
     - Export OBJ (will save to Downloads)
     - Import OBJ (will jump out of fullscreen mode and open a file browser)
