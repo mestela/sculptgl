@@ -25,9 +25,10 @@ It should work on any WebXR compatible device. So far I've tested on
 
 ## Features
 - **Core VR/AR**:
+    - Render ported to webXR
     - Works in PCVR (accessible via Meta Link/Air Link).
     - **Native Quest 2/3 Support**: Includes AR Passthrough mode (select it from the view menu, there's a noticable pause/glitch when it swaps)
-    - Render ported to webXR
+
 - **Interaction**:
     - **VR Tablet Menu**: UI moved to a palette on the left controller, basic butttons, toggles, sliders
     - **Two-Handed Navigation**:
@@ -41,13 +42,14 @@ It should work on any WebXR compatible device. So far I've tested on
     - Rendering modes: Matcap, PBR, Wireframe, Flat Shading (Desktop/VR Exposure matched)
     - Brush Indicator (Cursor) restored in VR
     - Correct World Scale (1.0 = 1 meter) & Comfortable Initial Camera Position
-    - symmetry
+    - Symmetry (still not 100%, but getting there)
     - Export OBJ (will save to Downloads)
     - Import OBJ (will jump out of fullscreen mode and open a file browser)
-    - Dynamic Topology (Experimental)
+    
 
 ## Todo
 - **Functionality**:
+    - Dynamic Topology (code path is active, but not working, unsure why)
     - Multiresolution not yet supported in VR
     - Can't change matcaps or PBR environment (need combobox UI element)
     - Add primitives menu missing
