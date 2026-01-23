@@ -387,7 +387,7 @@ class SculptGL extends Scene {
   onDeviceUp() {
     this.setCanvasCursor('default');
     Multimesh.RENDER_HINT = Multimesh.NONE;
-    this._sculptManager.end();
+    if (this._sculptManager) this._sculptManager.end();
 
     if (this._action === Enums.Action.MASK_EDIT && this._mesh) {
 
@@ -439,7 +439,7 @@ class SculptGL extends Scene {
     var button = event.which;
 
     var canEdit = false;
-    if (button === MOUSE_LEFT)
+    if (button === MOUSE_LEFT && this._sculptManager)
       canEdit = this._sculptManager.start(event.shiftKey);
 
     if (button === MOUSE_LEFT && canEdit)
@@ -503,7 +503,7 @@ class SculptGL extends Scene {
     } else {
 
       Multimesh.RENDER_HINT = Multimesh.PICKING;
-      this._sculptManager.preUpdate();
+      if (this._sculptManager) this._sculptManager.preUpdate();
 
       if (action === Enums.Action.SCULPT_EDIT) {
         Multimesh.RENDER_HINT = Multimesh.SCULPT;

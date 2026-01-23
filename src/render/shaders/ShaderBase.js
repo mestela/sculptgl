@@ -19,7 +19,7 @@ ShaderBase.activeAttributes = {
 ShaderBase.showSymmetryLine = getOptionsURL().mirrorline;
 ShaderBase.darkenUnselected = getOptionsURL().darkenunselected;
 ShaderBase.uniformNames = {};
-ShaderBase.uniformNames.commonUniforms = ['uMV', 'uMVP', 'uN', 'uEM', 'uEN', 'uFlat', 'uPlaneO', 'uPlaneN', 'uSym', 'uCurvature', 'uAlpha', 'uFov', 'uDarken'];
+ShaderBase.uniformNames.commonUniforms = ['uMV', 'uMVP', 'uN', 'uEM', 'uEN', 'uFlat', 'uPlaneO', 'uPlaneN', 'uSym', 'uCurvature', 'uAlpha', 'uFov', 'uDarken', 'uExposure'];
 
 ShaderBase.strings = {};
 ShaderBase.strings.colorSpaceGLSL = colorSpaceGLSL;
@@ -38,6 +38,7 @@ ShaderBase.strings.fragColorUniforms = [
   'uniform int uDarken;',
   'uniform float uCurvature;',
   'uniform float uFov;',
+  'uniform float uExposure;',
   'varying float vMasking;',
   'uniform int uFlat;'
 ].join('\n');
@@ -54,6 +55,7 @@ ShaderBase.strings.fragColorFunction = [
   '}',
   'vec4 encodeFragColor(const in vec3 frag, const in float alpha) {',
   '  vec3 col = computeCurvature(vVertex, vNormal, frag, uCurvature, uFov);',
+  '  col *= uExposure;',
   '  if(uDarken == 1) col *= 0.3;',
   '  col *= (0.3 + 0.7 * vMasking);',
   '  if(uSym == 1 && abs(dot(uPlaneN, vVertex - uPlaneO)) < 0.15)',
@@ -173,6 +175,7 @@ ShaderBase.updateUniforms = (function () {
     // gl.uniform1f(uniforms.uCurvature, mesh.getCurvature());
     var cam = main.getCamera();
     gl.uniform1f(uniforms.uFov, cam.isOrthographic() ? -Math.abs(cam._trans[2]) * 25.0 : cam.getFov());
+    gl.uniform1f(uniforms.uExposure, main.getExposure ? main.getExposure() : 1.0);
   };
 })();
 

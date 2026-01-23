@@ -89,7 +89,7 @@ class Scene {
       : null;
 
     this._activeHandedness = 'right';
-    this._vrScale = 0.99; // Calibrated scale
+    this._vrScale = 0.01; // Scale 100-unit world to 1 meter
 
     this._vrGrip = {
       left: { active: false, startPoint: vec3.create(), startRot: quat.create() },
@@ -684,13 +684,6 @@ class Scene {
     // make a cube and subdivide it
     var mesh = new Multimesh(Primitives.createCube(this._gl));
     mesh.normalizeSize();
-    // 50cm diameter sphere (0.25 radius, but sphere primitive is radius 100 * scale?)
-    // Utils.SCALE is 100.
-    // Primitives.createSphere(gl, radius=50 ...)
-    // Wait, let's keep it simple. 0.01 was 1m. 0.005 is 50cm.
-    // 50cm diameter sphere (0.25 radius), centered at origin for safety.
-    // mat4.translate(mesh.getMatrix(), mesh.getMatrix(), [0.0, 1.3, -0.5]); // Reverted due to visibility issues
-    mat4.scale(mesh.getMatrix(), mesh.getMatrix(), [0.005, 0.005, 0.005]);
     this.subdivideClamp(mesh);
 
     // Use Matcap (Better Performance on Mobile VR)
