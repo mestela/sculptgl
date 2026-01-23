@@ -918,12 +918,6 @@ class Scene {
     // Let's assume Y slider = "Scene Height".
     // If I increase Y, scene goes up.
 
-    // Debug Log for Tuning (User Request)
-    // if (this._xrWorldOffset && window.screenLog && (++this._logThrottle % 30 === 0)) {
-    //    const p = this._xrWorldOffset.position;
-    //    window.screenLog(`Z-Offset: ${p.z.toFixed(3)} (Scale: ${this._vrScale.toFixed(3)})`, "orange");
-    // }
-
     // 1. View Reference Space Handling (Initial Pivot)   // "result = base * offset" ?
     // "viewer_in_base = viewer_in_offset * offset_inverse" ?
     // Documentation says: getOffsetReferenceSpace(originOffset)

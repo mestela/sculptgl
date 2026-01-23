@@ -97,8 +97,9 @@ class Scene {
       right: { active: false, startPoint: vec3.create(), startRot: quat.create() }
     };
 
-    // Initial World Offset (Camera pulled back 55cm)
-    this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: -0.55 });
+    // Initial World Offset (Camera pulled back 55cm, Lifted 1.2m)
+    // Fix: Y=0 put it on the floor. Y=1.2 should be chest/head height.
+    this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 1.2, z: -0.55 }); 
     this._vrTwoHanded = { active: false, prevMid: vec3.create(), prevDist: 0.0, prevVec: vec3.create() };
 
     // VR Menu State
@@ -1538,7 +1539,7 @@ class Scene {
     // Pivot Lock: If scaling around the origin (0,0,0), skip position math
     if (vec3.length(pivot) < 0.0001) return;
 
-    if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: -0.55 });
+    if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 1.2, z: -0.55 });
 
     let pos = vec3.fromValues(this._xrWorldOffset.position.x, this._xrWorldOffset.position.y, this._xrWorldOffset.position.z);
     let diff = vec3.create();
@@ -1551,7 +1552,7 @@ class Scene {
   }
 
   rotateWorld(qDelta, pivot) {
-    if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 0, z: -0.55 });
+    if (!this._xrWorldOffset) this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 1.2, z: -0.55 });
 
     let pos = vec3.fromValues(this._xrWorldOffset.position.x, this._xrWorldOffset.position.y, this._xrWorldOffset.position.z);
     let rot = quat.fromValues(this._xrWorldOffset.orientation.x, this._xrWorldOffset.orientation.y, this._xrWorldOffset.orientation.z, this._xrWorldOffset.orientation.w);
