@@ -99,7 +99,7 @@ class Scene {
 
     // Initial World Offset (Camera pulled back 55cm, Lifted 1.2m)
     // Fix: Y=0 put it on the floor. Y=1.2 should be chest/head height.
-    this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 1.2, z: -0.55 }); 
+    this._xrWorldOffset = new XRRigidTransform({ x: 0, y: 1.2, z: -0.55 });
     this._vrTwoHanded = { active: false, prevMid: vec3.create(), prevDist: 0.0, prevVec: vec3.create() };
 
     // VR Menu State
@@ -110,6 +110,8 @@ class Scene {
   }
 
   start() {
+    if (window.screenLog) window.screenLog("Scene: Loaded v0.5.180", "lime");
+    console.log("Scene: Loaded v0.5.180");
     this.initWebGL();
     if (!this._gl)
       return;
@@ -138,10 +140,24 @@ class Scene {
 
     var modelURL = getOptionsURL().modelurl;
     if (modelURL) this.addModelURL(modelURL);
-    else this.addSphere();
+    // else this.addSphere(); // [USER REQUEST] No default sphere to test Voxel Drawing freely
 
     // [DEBUG] Visualize Sphere Lift Target
-    this.updateDebugPivot([0, 1.3, -0.5], true);
+    // this.updateDebugPivot([0, 1.3, -0.5], true);
+
+    // [DEBUG] Auto-Selection Check
+    if (this._sculptManager) {
+      const tool = this._sculptManager.getCurrentTool();
+      const toolName = tool ? tool.constructor.name : "None";
+      const toolIdx = this._sculptManager.getToolIndex();
+      if (window.screenLog) window.screenLog(`Auto-Selected Tool: ${toolName} (Idx: ${toolIdx})`, "lime");
+      console.log(`Auto-Selected Tool: ${toolName} (Idx: ${toolIdx})`);
+
+      // Force Voxel Start if Voxel Tool provided
+      if (toolName === 'SculptVoxel' && tool.forceInit) {
+        tool.forceInit();
+      }
+    }
   }
 
   addModelURL(url) {
@@ -300,17 +316,21 @@ class Scene {
 
     gl.disable(gl.DEPTH_TEST);
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttMerge.getFramebuffer());
-    this._rttMerge.render(this); // merge + decode
+    if (this._rttMerge) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttMerge.getFramebuffer());
+      this._rttMerge.render(this); // merge + decode
+    }
 
     // render to screen (or target FBO)
     gl.bindFramebuffer(gl.FRAMEBUFFER, targetFBO);
 
-    this._rttOpaque.render(this); // fxaa
+    if (this._rttOpaque) {
+      this._rttOpaque.render(this); // fxaa
+    }
 
     gl.enable(gl.DEPTH_TEST);
 
-    this._sculptManager.postRender(); // draw sculpting gizmo stuffs
+    if (this._sculptManager) this._sculptManager.postRender(); // draw sculpting gizmo stuffs
   }
 
   getExposure() {
@@ -372,20 +392,23 @@ class Scene {
         gl.enable(gl.DEPTH_TEST);
       }
 
-
+      // Log Once
+      if (window.screenLog && Math.random() < 0.005) {
+        // if (window.screenLog && Math.random() < 0.01) window.screenLog(`VR Rendering: ${meshes.length} Meshes`, "grey");
+      }
 
       // --- PASS 2: SCALED/TRANSFORMED WORLD (Content) ---
       // Apply World Transform to View Matrix
       // View = View * WorldMatrix
-      
+
       if (this._xrWorldOffset) {
-         // Apply Translation/Rotation
-         const t = this._xrWorldOffset.position;
-         const r = this._xrWorldOffset.orientation;
-         
-         const worldMat = mat4.create();
-         mat4.fromRotationTranslation(worldMat, [r.x, r.y, r.z, r.w], [t.x, t.y, t.z]);
-         mat4.multiply(cam._view, cam._view, worldMat);
+        // Apply Translation/Rotation
+        const t = this._xrWorldOffset.position;
+        const r = this._xrWorldOffset.orientation;
+
+        const worldMat = mat4.create();
+        mat4.fromRotationTranslation(worldMat, [r.x, r.y, r.z, r.w], [t.x, t.y, t.z]);
+        mat4.multiply(cam._view, cam._view, worldMat);
       }
 
       if (this._vrScale !== 1.0) {
@@ -404,7 +427,7 @@ class Scene {
         meshes[i].updateMatrices(cam);
         meshes[i].render(this);
       }
-      
+
       // Wireframe (Pass 2)
       gl.enable(gl.BLEND);
       gl.depthFunc(gl.LESS);
@@ -420,6 +443,10 @@ class Scene {
         // rWorld2 is set in handleXRInput (picking logic)
         const radius = this._picking._rWorld2 ? Math.sqrt(this._picking._rWorld2) : 0.05;
         this._sculptManager.getSelection().renderVR(this, cam, radius);
+
+        // Debug Interaction
+        // if (this._vrGrip.right.active && window.screenLog && Math.random() < 0.02)
+        //   window.screenLog("VR: Grip Active", "yellow");
       }
     }
   }
@@ -458,7 +485,7 @@ class Scene {
     ///////////////
     gl.disable(gl.DEPTH_TEST);
     var showContour = this._selectMeshes.length > 0 && this._showContour && ShaderLib[Enums.Shader.CONTOUR].color[3] > 0.0;
-    if (showContour) {
+    if (showContour && this._rttContour) {
       gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttContour.getFramebuffer());
       gl.clear(gl.COLOR_BUFFER_BIT);
       for (var s = 0, sel = this._selectMeshes, nbSel = sel.length; s < nbSel; ++s)
@@ -469,11 +496,13 @@ class Scene {
     ///////////////
     // OPAQUE PASS
     ///////////////
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttOpaque.getFramebuffer());
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    if (this._rttOpaque) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttOpaque.getFramebuffer());
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
 
     // grid
-    if (this._showGrid) this._grid.render(this);
+    if (this._showGrid && this._grid) this._grid.render(this);
 
     // VR Controllers
     if (this._vrControllerLeft) this._vrControllerLeft.render(this);
@@ -488,13 +517,15 @@ class Scene {
     if (this._meshPreview) this._meshPreview.render(this);
 
     // background
-    this._background.render();
+    if (this._background) this._background.render();
 
     ///////////////
     // TRANSPARENT PASS
     ///////////////
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttTransparent.getFramebuffer());
-    gl.clear(gl.COLOR_BUFFER_BIT);
+    if (this._rttTransparent) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this._rttTransparent.getFramebuffer());
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
 
     gl.enable(gl.BLEND);
 
@@ -521,7 +552,7 @@ class Scene {
     ///////////////
     // CONTOUR 2/2
     ///////////////
-    if (showContour) {
+    if (showContour && this._rttContour) {
       this._rttContour.render(this);
     }
 
@@ -667,8 +698,8 @@ class Scene {
 
   computeBoundingBoxScene() {
     var scene = this._meshes.slice();
-    scene.push(this._grid);
-    this._sculptManager.addSculptToScene(scene);
+    if (this._grid) scene.push(this._grid);
+    if (this._sculptManager) this._sculptManager.addSculptToScene(scene);
     return this.computeBoundingBoxMeshes(scene);
   }
 
@@ -918,12 +949,6 @@ class Scene {
     // Let's assume Y slider = "Scene Height".
     // If I increase Y, scene goes up.
 
-    // Debug Log for Tuning (User Request)
-    // if (this._xrWorldOffset && window.screenLog && (++this._logThrottle % 30 === 0)) {
-    //    const p = this._xrWorldOffset.position;
-    //    window.screenLog(`Z-Offset: ${p.z.toFixed(3)} (Scale: ${this._vrScale.toFixed(3)})`, "orange");
-    // }
-
     // 1. View Reference Space Handling (Initial Pivot)   // "result = base * offset" ?
     // "viewer_in_base = viewer_in_offset * offset_inverse" ?
     // Documentation says: getOffsetReferenceSpace(originOffset)
@@ -1059,7 +1084,7 @@ class Scene {
 
     // Apply Scale (Controllers are 1.0 size cubes, we want 0.02m = 2cm)
     mat4.scale(mat, mat, [0.02, 0.02, 0.02]);
-    
+
     // DEBUG: Verify Right Controller Position (Fixed)
     // if (handedness === 'right' && window.screenLog && this._logThrottle % 200 === 0) {
     //    window.screenLog("Right Pos: " + vec3.str(pos), "cyan");
@@ -1104,32 +1129,7 @@ class Scene {
   }
 
   updateDebugPivot(pos, active) {
-    if (!this._debugPivotMesh) {
-       // Lazy Init
-      this._debugPivotMesh = Primitives.createCube(this._gl);
-       this._debugPivotMesh.setShader(Enums.Shader.FLAT);
-       this._debugPivotMesh.setFlatColor([0.0, 1.0, 0.0]); // GREEN (Test)
-       this._debugPivotMesh.init();
-       this._debugPivotMesh.initRender();
-    }
-
-    if (active && pos) {
-      if (!this._debugPivotMesh.isVisible()) this._debugPivotMesh.setVisible(true);
-      
-      // LOG COORDINATES (Throttle)
-       // if (window.screenLog && Math.random() < 0.02) {
-       //    window.screenLog(`Pivot Draw: ${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}, ${pos[2].toFixed(2)}`, "green");
-       // }
-
-      var mat = this._debugPivotMesh.getMatrix();
-      mat4.identity(mat);
-      mat4.translate(mat, mat, pos);
-      mat4.scale(mat, mat, [0.1, 0.1, 0.1]); // 10cm Cube (HUGE)
-    } else {
-      if (this._debugPivotMesh && this._debugPivotMesh.isVisible()) {
-        this._debugPivotMesh.setVisible(false);
-      }
-    }
+    // NUKED
   }
 
   _drawSceneVR() {
@@ -1163,32 +1163,7 @@ class Scene {
   }
 
   updateDebugPivot(pos, active) {
-    if (!this._debugPivotMesh) {
-      // Late Init
-      var gl = this._gl;
-      if (!gl) return;
-      this._debugPivotMesh = new Multimesh(Primitives.createCube(gl));
-      this._debugPivotMesh.normalizeSize();
-      this._debugPivotMesh.setShaderType(Enums.Shader.FLAT);
-      this._debugPivotMesh.setFlatColor([1.0, 0.0, 1.0]); // PINK
-      this._debugPivotMesh.init();
-      this._debugPivotMesh.initRender();
-      if (window.screenLog) window.screenLog("Pivot Mesh Initialized", "magenta");
-    }
-
-    if (active && pos) {
-      this._debugPivotMesh.setVisible(true);
-      var mat = this._debugPivotMesh.getMatrix();
-      mat4.identity(mat);
-      mat4.translate(mat, mat, pos);
-      mat4.scale(mat, mat, [0.04, 0.04, 0.04]); // X-Ray Visible
-
-      // Debug Log (Throttled?)
-      // if (window.screenLog && Math.random() < 0.05) window.screenLog(`Pivot: ${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}, ${pos[2].toFixed(2)}`, "magenta");
-
-    } else {
-      this._debugPivotMesh.setVisible(false);
-    }
+    // NUKED: Debug Cube Forbidden
   }
 
   onXRFrame(time, frame) {
@@ -1197,7 +1172,7 @@ class Scene {
 
     // Force use of Base Ref Space (Local Floor) to debug "Flying Cube"
     // The previous offset logic likely doubled up or inverted height.
-    const refSpace = this._baseRefSpace; 
+    const refSpace = this._baseRefSpace;
 
     const pose = frame.getViewerPose(refSpace);
     if (pose) {
@@ -1228,7 +1203,7 @@ class Scene {
 
     const session = frame.session;
     const sources = session.inputSources;
-    
+
     let leftGrip = false, rightGrip = false;
     let leftOrigin = null, rightOrigin = null;
     let leftRot = null, rightRot = null;
@@ -1359,34 +1334,34 @@ class Scene {
         }
       }
 
-    // 3. Navigation Data (Base Space - Stable coordinates)
-    if (this._baseRefSpace) {
-      const basePose = frame.getPose(source.gripSpace, this._baseRefSpace);
-      if (basePose) {
-        const originBase = [basePose.transform.position.x, basePose.transform.position.y, basePose.transform.position.z];
-        
-        // Grip Button (Button 1 or Trigger/Squeeze?)
-        // Usually Button 1 is Squeeze. Button 0 is Trigger.
-        const isGrip = source.gamepad && source.gamepad.buttons[1] && source.gamepad.buttons[1].pressed;
+      // 3. Navigation Data (Base Space - Stable coordinates)
+      if (this._baseRefSpace) {
+        const basePose = frame.getPose(source.gripSpace, this._baseRefSpace);
+        if (basePose) {
+          const originBase = [basePose.transform.position.x, basePose.transform.position.y, basePose.transform.position.z];
 
-        const rot = basePose.transform.orientation; // Quaternion {x,y,z,w}
-        const rotQuat = quat.fromValues(rot.x, rot.y, rot.z, rot.w);
+          // Grip Button (Button 1 or Trigger/Squeeze?)
+          // Usually Button 1 is Squeeze. Button 0 is Trigger.
+          const isGrip = source.gamepad && source.gamepad.buttons[1] && source.gamepad.buttons[1].pressed;
 
-        if (source.handedness === 'left') { leftGrip = isGrip; leftOrigin = originBase; leftRot = rotQuat; }
-        if (source.handedness === 'right') { rightGrip = isGrip; rightOrigin = originBase; rightRot = rotQuat; }
+          const rot = basePose.transform.orientation; // Quaternion {x,y,z,w}
+          const rotQuat = quat.fromValues(rot.x, rot.y, rot.z, rot.w);
+
+          if (source.handedness === 'left') { leftGrip = isGrip; leftOrigin = originBase; leftRot = rotQuat; }
+          if (source.handedness === 'right') { rightGrip = isGrip; rightOrigin = originBase; rightRot = rotQuat; }
+        }
+      }
+
+      // 4. Stylus / Trigger Dominance
+      if (source.gamepad && source.gamepad.buttons[0] && source.gamepad.buttons[0].pressed) {
+        this._activeHandedness = source.handedness;
       }
     }
 
-    // 4. Stylus / Trigger Dominance
-    if (source.gamepad && source.gamepad.buttons[0] && source.gamepad.buttons[0].pressed) {
-      this._activeHandedness = source.handedness;
-    }
-  }
+    // FORCE PIVOT INIT (Just in case)
+    // if (!this._debugPivotMesh) this.updateDebugPivot([0, 0, 0], false);
 
-  // FORCE PIVOT INIT (Just in case)
-  if (!this._debugPivotMesh) this.updateDebugPivot([0,0,0], false);
-
-  // 5. Dispatch Sculpting (Active Hand)
+    // 5. Dispatch Sculpting (Active Hand)
     // XRInputSourceArray is not a real array, so .find() fails.
     let activeSource = null;
     for (const s of sources) {
@@ -1397,7 +1372,7 @@ class Scene {
     }
 
     if (activeSource) this.processVRSculpting(activeSource, frame, refSpace);
-    
+
     // Sync Debug Cursor specific to Active Hand (or failing that, right hand?)
     // processVRSculpting calls updateDebugCursor internally? No.
     // Actually SculptManager calls picking.intersectionPoint which...
@@ -1405,7 +1380,7 @@ class Scene {
     // Wait, I haven't read processVRSculpting in this session.
     // It's likely near line 1300.
     // I will search for it first or just patch handleXRInput if I can.
-    
+
     // 6. Dispatch Navigation (Logic Switch)
     // 6. Dispatch Navigation (Logic Switch)
     // DOUBLE GRIP LATCH: Enforce "Clean Exit"
@@ -1580,7 +1555,7 @@ class Scene {
     // Model = Inv(Scale) * Inv(Rotation) * Inv(Translation) * Physical
     const vrScale = this._vrScale || 1.0;
     const invScale = 1.0 / vrScale;
-    
+
     const enginePos = vec3.create();
     vec3.copy(enginePos, physicalOrigin);
 
@@ -1588,7 +1563,7 @@ class Scene {
     if (this._xrWorldOffset) {
       const t = this._xrWorldOffset.position;
       const r = this._xrWorldOffset.orientation;
-      
+
       // 1. Inverse Translation (P - T)
       vec3.sub(enginePos, enginePos, [t.x, t.y, t.z]);
 
@@ -1603,7 +1578,7 @@ class Scene {
     vec3.scale(enginePos, enginePos, invScale);
 
     // CRITICAL: Update shared state for SculptBase/SculptManager parity
-    this._vrControllerPos = enginePos; 
+    this._vrControllerPos = enginePos;
 
     // 2.5 Menu Guard: If pointing at menu, block sculpting
     // This requires handleXRInput to have run and set this._isPointingAtMenu
@@ -1621,7 +1596,7 @@ class Scene {
     // Note: this._guiXR might be missing if not initialized, fallback to 0.15 (1.5cm) for "Spike" feel
     const sliderVal = (this._guiXR) ? this._guiXR._radius : 0.15;
     const physicalRadius = sliderVal * 0.1; // Map to 0-10cm physical range
-    const pickingRadius = physicalRadius * invScale; 
+    const pickingRadius = physicalRadius * invScale;
 
     // 4. Picking State Synchronization
     // FIX v0.5.40: Quadruple search radius (User Request)
@@ -1649,10 +1624,10 @@ class Scene {
     // So enginePos should map 1:1 to Physical Hand visually IF rendered in Pass 2.
     if (this._debugCursor) {
       this.updateDebugCursor(enginePos, true);
-      
+
       // Fix Red Cube Blobbing: Inverse Scale to maintain physical size
       const currentMat = this._debugCursor.getMatrix();
-      
+
       // We want to scale it by invScale RELATIVE to its current 1.0 size.
       // updateDebugCursor sets scale to 0.02 (2cm).
       // If World is 10x bigger (scale 10), we want Cube to be 2cm * 0.1?
@@ -1667,22 +1642,28 @@ class Scene {
         // If the world is NOT scaled by matrix, this should look like 1.5cm.
         // If the world IS scaled by matrix, this will look tiny/huge.
         // User reports "Smaller as world smaller".
-        // World Smaller usually means "Zoomed Out" (Scale < 1)? 
+        // World Smaller usually means "Zoomed Out" (Scale < 1)?
         // Or "World is small object" (Scale < 1)?
         // If Scale < 1, invScale > 1.
-        
+
         mat4.identity(currentMat);
         mat4.translate(currentMat, currentMat, enginePos);
-        
+
         // TRY: Constant size 1.5cm (0.015).
         // If this grows/shrinks, then Render Matrix IS scaling.
-        const size = 0.015; 
+        const size = 0.015;
         mat4.scale(currentMat, currentMat, [size, size, size]);
       }
     }
 
-    // Allow Start ONLY if Picked. Allow Continue ALWAYS if Trigger is held.
-    const canSculpt = isTriggerPressed && (picked || this._vrSculpting);
+    // Allow Start ONLY if Picked OR Tool Allows Air (Voxel). Allow Continue ALWAYS if Trigger is held.
+    const tool = this._sculptManager.getCurrentTool();
+    const allowAir = (tool && tool._allowAir === true);
+    const canSculpt = isTriggerPressed && (picked || this._vrSculpting || allowAir);
+
+    if (isTriggerPressed && !canSculpt && this._logThrottle % 60 === 0 && window.screenLog) {
+      window.screenLog(`Blocked: Pick=${!!picked} Air=${allowAir} Tool=${tool ? tool.constructor.name : 'None'}`, "orange");
+    }
 
     if (canSculpt) {
       if (!this._vrSculpting) {
@@ -1699,9 +1680,21 @@ class Scene {
       this._sculptManager.preUpdate(); // Sync position
 
       // CRITICAL: pass picking to updateXR if supported, else standard update
-      // CRITICAL: pass picking to updateXR if supported, else standard update
       if (typeof this._sculptManager.updateXR === 'function') {
-        this._sculptManager.updateXR(this._picking);
+        // Calculate Model Direction (robustly)
+        const dir = vec3.fromValues(0, 0, -1);
+        if (pose && pose.transform && pose.transform.orientation) {
+          const qGrip = quat.fromValues(pose.transform.orientation.x, pose.transform.orientation.y, pose.transform.orientation.z, pose.transform.orientation.w);
+          vec3.transformQuat(dir, dir, qGrip);
+        }
+
+        if (this._xrWorldOffset) {
+          const r2 = this._xrWorldOffset.orientation;
+          const qInv2 = quat.create();
+          quat.invert(qInv2, quat.fromValues(r2.x, r2.y, r2.z, r2.w));
+          vec3.transformQuat(dir, dir, qInv2);
+        }
+        this._sculptManager.updateXR(this._picking, isTriggerPressed, enginePos, dir);
       } else {
         if (window.screenLog) window.screenLog("Scene: No updateXR found!", "red");
         this._sculptManager.update();
@@ -1724,7 +1717,7 @@ class Scene {
       if (this._vrSculpting) {
         this._vrSculpting = false;
         // Deep Trace: End Stroke
-        if (window.screenLog) window.screenLog("Sculpt: END STROKE", "lime");
+        // if (window.screenLog) window.screenLog("Sculpt: END STROKE", "lime");
 
         this._sculptManager.end();
         this._action = Enums.Action.NOTHING;
@@ -1737,7 +1730,7 @@ class Scene {
       // Default to 1cm (0.01) if undefined
       const cursorSize = (typeof pickingRadius !== 'undefined') ? pickingRadius : 0.01;
 
-      if (picked) {
+      if (picked && !allowAir) {
         const mesh = this._picking.getMesh();
         if (mesh) {
           const localInter = this._picking.getIntersectionPoint();
@@ -1750,7 +1743,7 @@ class Scene {
       } else {
         // Show at Controller Tip (Red)
         this.updateDebugCursor(enginePos, true, cursorSize);
-        if (this._debugCursor) this._debugCursor.setFlatColor([1.0, 0.0, 0.0]);
+        if (this._debugCursor) this._debugCursor.setFlatColor(picked ? [1.0, 1.0, 0.0] : [1.0, 0.0, 0.0]);
       }
     }
   }

@@ -16,12 +16,17 @@ class StateAddRemove {
     var meshesMain = main.getMeshes();
     var addMeshes = this._addedMeshes;
     var i, l;
-    for (i = 0, l = addMeshes.length; i < l; ++i)
-      meshesMain.splice(main.getIndexMesh(addMeshes[i]), 1);
+
+    if (addMeshes && addMeshes.length) {
+      for (i = 0, l = addMeshes.length; i < l; ++i)
+        meshesMain.splice(main.getIndexMesh(addMeshes[i]), 1);
+    }
 
     var remMeshes = this._removedMeshes;
-    for (i = 0, l = remMeshes.length; i < l; ++i)
-      meshesMain.push(remMeshes[i]);
+    if (remMeshes && remMeshes.length) {
+      for (i = 0, l = remMeshes.length; i < l; ++i)
+        meshesMain.push(remMeshes[i]);
+    }
 
     for (i = 0, l = meshesMain.length; i < l; ++i) {
       meshesMain[i].initRender();

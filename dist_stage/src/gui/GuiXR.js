@@ -23,29 +23,38 @@ class GuiXR {
     this._activeTab = 'TOOLS';
 
     this._cursor = { x: -1, y: -1, active: false };
-    this._radius = 0.25; // Expose for VR Scene
+    this._radius = 0.20; // Expose for VR Scene
 
-    // Define Widgets per Tab
     this._tabWidgets = {
       'TOOLS': [
         // Sliders
-        { type: 'slider', id: 'radius', x: 20, y: 80, w: 200, h: 40, label: 'Radius', value: 0.25 },
-        { type: 'slider', id: 'intensity', x: 20, y: 140, w: 200, h: 40, label: 'Intensity', value: 0.5 },
-        // Radius/Intensity are special, they persist their values
+        { type: 'slider', id: 'radius', x: 20, y: 80, w: 200, h: 30, label: 'Rad', value: 0.20 },
+        { type: 'slider', id: 'intensity', x: 20, y: 120, w: 200, h: 30, label: 'Int', value: 0.5 },
+
+        // Voxel Sliders
+        { type: 'slider', id: 'voxelRes', x: 240, y: 80, w: 200, h: 30, label: 'Res', value: 0.5 }, // 32..256
+        { type: 'slider', id: 'voxelRad', x: 240, y: 120, w: 200, h: 30, label: 'Mult', value: 0.5 }, // 1..100
 
         // Tools (Grid 2xN)
-        { type: 'button', id: Enums.Tools.BRUSH, label: 'Brush', x: 20, y: 220, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.INFLATE, label: 'Inflate', x: 130, y: 220, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.SMOOTH, label: 'Smooth', x: 20, y: 270, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.FLATTEN, label: 'Flatten', x: 130, y: 270, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.PINCH, label: 'Pinch', x: 20, y: 320, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.CREASE, label: 'Crease', x: 130, y: 320, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.DRAG, label: 'Drag', x: 20, y: 370, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.MOVE, label: 'Move', x: 130, y: 370, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.PAINT, label: 'Paint', x: 20, y: 420, w: 100, h: 40 },
-        { type: 'button', id: Enums.Tools.MASKING, label: 'Mask', x: 130, y: 420, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.BRUSH, label: 'Brush', x: 20, y: 170, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.INFLATE, label: 'Inflate', x: 130, y: 170, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.SMOOTH, label: 'Smooth', x: 20, y: 220, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.FLATTEN, label: 'Flatten', x: 130, y: 220, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.PINCH, label: 'Pinch', x: 20, y: 270, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.CREASE, label: 'Crease', x: 130, y: 270, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.DRAG, label: 'Drag', x: 20, y: 320, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.MOVE, label: 'Move', x: 130, y: 320, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.PAINT, label: 'Paint', x: 20, y: 370, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.TRANSFORM, label: 'Transform', x: 130, y: 370, w: 100, h: 40 },
+
+        // Voxel Tool Highlight
+        { type: 'button', id: Enums.Tools.VOXEL, label: 'VOXEL', x: 240, y: 170, w: 200, h: 40 },
+
+        { type: 'button', id: Enums.Tools.MASKING, label: 'Mask', x: 240, y: 220, w: 100, h: 40 },
+        { type: 'button', id: Enums.Tools.LOCALSCALE, label: 'L.Scale', x: 350, y: 220, w: 90, h: 40 },
+
         // Dynamic Topology Toggle
-        { type: 'toggle', id: 'dynamic', label: 'Dynamic Topology', x: 20, y: 470, w: 210, h: 40 }
+        { type: 'toggle', id: 'dynamic', label: 'Dynamic Topology', x: 20, y: 440, w: 210, h: 40 }
       ],
       'VIEW': [
         { type: 'toggle', id: 'flat', label: 'Flat Shading', x: 20, y: 150, w: 200, h: 50 },
@@ -69,6 +78,9 @@ class GuiXR {
         { type: 'button', id: 'max_resolution', label: 'Subdivide', x: 20, y: 240, w: 200, h: 60 }
       ]
     };
+
+    // Sync initial radius to tool
+    setTimeout(() => this.syncToolRadius(), 500); 
   }
 
   init(gl) {
@@ -167,10 +179,27 @@ class GuiXR {
         this._lastSliderCallback = now;
         if (this._main) {
           if (w.id === 'radius') {
-            this._radius = val;
-            this._main.getSculptManager().getTool().setRadius(val * 100);
+            this.updateRadius(val);
           }
-          if (w.id === 'intensity') this._main.getSculptManager().getTool().setIntensity(val);
+          if (w.id === 'intensity') this._main.getSculptManager().getCurrentTool().setIntensity(val);
+
+          // Voxel Specific Callbacks
+          if (w.id === 'voxelRes') {
+            var tool = this._main.getSculptManager().getTool(Enums.Tools.VOXEL);
+            if (tool && tool.setResolution) {
+              // Map 0..1 to 32..256
+              var res = Math.floor(32 + val * (256 - 32));
+              tool.setResolution(res);
+            }
+          }
+          if (w.id === 'voxelRad') {
+            var tool = this._main.getSculptManager().getTool(Enums.Tools.VOXEL);
+            if (tool && tool.setRadiusMultiplier) {
+              // Map 0..1 to 1..100
+              var mult = 1.0 + val * 99.0;
+              tool.setRadiusMultiplier(mult);
+            }
+          }
 
           // Force 3D Render for immediate feedback
           this._main.render();
@@ -421,7 +450,8 @@ class GuiXR {
       ctx.textAlign = 'center';
       if (wid.type === 'slider') {
         ctx.textAlign = 'left';
-        ctx.fillText(wid.label, wid.x + 10, wid.y + 25);
+        // Add Value to Label
+        ctx.fillText(`${wid.label}: ${wid.value.toFixed(2)}`, wid.x + 10, wid.y + 25);
       } else {
         ctx.fillText(wid.label, wid.x + wid.w / 2, wid.y + wid.h / 2);
       }
@@ -478,16 +508,19 @@ class GuiXR {
     return this._texture;
   }
 
+  syncToolRadius() {
+    var tool = this._main.getSculptManager().getCurrentTool();
+    if (tool) tool.setRadius(this._radius * 100);
+  }
+
   updateRadius(val) {
     this._radius = val;
-    const widgets = this._getWidgets(); // Currently active tab widgets
-    // We need to find the widget in 'TOOLS' specifically if we aren't on that tab?
-    // Actually, stick to active tab or find in _tabWidgets['TOOLS']
     const tools = this._tabWidgets['TOOLS'];
     if (tools) {
       const w = tools.find(w => w.id === 'radius');
       if (w) w.value = val;
     }
+    this.syncToolRadius();
     this.forceDraw();
   }
 }

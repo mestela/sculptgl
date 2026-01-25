@@ -108,6 +108,7 @@ var TR = {
   sculptMove: 'Move',
   sculptLocalScale: 'Local scale',
   sculptTransform: 'Transform (E)',
+  sculptVoxel: 'Voxel',
 
   sculptCommon: 'Common',
   sculptTool: 'Tool',

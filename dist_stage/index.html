@@ -19,18 +19,11 @@
         }
 
         #vr-button {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            /* Handled by Flexbox container #xr-ui */
             padding: 12px 24px;
             background: #0078d4;
             color: white;
             border: none;
-            border-radius: 4px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 999;
         }
 
         #log {
@@ -47,6 +40,36 @@
             overflow: auto;
             z-index: 1000;
             white-space: pre-wrap;
+        }
+
+        /* Container for Centered Buttons */
+        #xr-ui {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 999;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .xr-button {
+            padding: 12px 24px;
+            background: #0078d4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            min-width: 120px;
+        }
+        .xr-button:hover {
+            background: #005a9e;
+        }
+        .xr-button:active {
+            background: #004578;
         }
     </style>
 
@@ -67,7 +90,7 @@
       "misc/getOptionsURL": "./src/misc/getOptionsURL.js",
       
       "math3d/Camera": "./src/math3d/Camera.js",
-      "math3d/Picking": "./src/math3d/Picking.js",
+      "math3d/Picking": "./src/math3d/Picking.js?v=5120",
       "math3d/Geometry": "./src/math3d/Geometry.js",
       "math3d/OctreeCell": "./src/math3d/OctreeCell.js",
       
@@ -103,9 +126,10 @@
       "editing/MarchingCubes": "./src/editing/MarchingCubes.js",
       "editing/Remesh": "./src/editing/Remesh.js",
       "editing/Reversion": "./src/editing/Reversion.js",
-      "editing/SculptManager": "./src/editing/SculptManager.js",
+      "editing/SculptManager": "./src/editing/SculptManager.js?v=5120",
       "editing/Subdivision": "./src/editing/Subdivision.js",
       "editing/SurfaceNets": "./src/editing/SurfaceNets.js",
+      "editing/VoxelState": "./src/editing/VoxelState.js?v=5120",
       
       "editing/tools/Brush": "./src/editing/tools/Brush.js",
       "editing/tools/Crease": "./src/editing/tools/Crease.js",
@@ -118,6 +142,7 @@
       "editing/tools/Paint": "./src/editing/tools/Paint.js",
       "editing/tools/Pinch": "./src/editing/tools/Pinch.js",
       "editing/tools/SculptBase": "./src/editing/tools/SculptBase.js",
+      "editing/tools/SculptVoxel": "./src/editing/tools/SculptVoxel.js?v=5130",
       "editing/tools/Smooth": "./src/editing/tools/Smooth.js",
       "editing/tools/Tools": "./src/editing/tools/Tools.js",
       "editing/tools/Transform": "./src/editing/tools/Transform.js",
@@ -137,14 +162,15 @@
       "files/ImportSGL": "./src/files/ImportSGL.js",
       "files/ImportSTL": "./src/files/ImportSTL.js",
       
-      "mesh/Mesh": "./src/mesh/Mesh.js",
+      "mesh/Mesh": "./src/mesh/MeshSafe.js?v=5122",
+      "./src/mesh/Mesh.js": "./src/mesh/MeshSafe.js?v=5122",
       "mesh/MeshData": "./src/mesh/MeshData.js",
       "mesh/RenderData": "./src/mesh/RenderData.js",
       "mesh/TransformData": "./src/mesh/TransformData.js",
       "mesh/dynamic/Decimation": "./src/mesh/dynamic/Decimation.js",
       "mesh/dynamic/MeshDynamic": "./src/mesh/dynamic/MeshDynamic.js",
       "mesh/dynamic/Subdivision": "./src/mesh/dynamic/Subdivision.js",
-      "mesh/meshStatic/MeshStatic": "./src/mesh/meshStatic/MeshStatic.js",
+      "mesh/meshStatic/MeshStatic": "./src/mesh/meshStatic/MeshStatic.js?v=5120",
       "mesh/multiresolution/MeshResolution": "./src/mesh/multiresolution/MeshResolution.js",
       "mesh/multiresolution/Multimesh": "./src/mesh/multiresolution/Multimesh.js",
       
@@ -204,16 +230,19 @@
       "render/shaders/glsl/outline.glsl": "./src/render/shaders/glsl/outline.glsl.js",
       "render/shaders/glsl/pbr.glsl": "./src/render/shaders/glsl/pbr.glsl.js",
       
-      "Scene": "./src/Scene.js?v=0.4.32",
-      "SculptGL": "./src/SculptGL.js?v=0.4.32",
-      "render/shaders/ShaderBase.js": "./src/render/shaders/ShaderBase.js?v=0.4.32"
+      "Scene": "./src/Scene.js?v=5122",
+      "SculptGL": "./src/SculptGL.js?v=5122",
+      "render/shaders/ShaderBase.js": "./src/render/shaders/ShaderBase.js?v=5122"
     }
   }
   </script>
 </head>
 
 <body>
-    <button id="vr-button">Enter VR</button>
+    <div id="xr-ui">
+        <button id="vr-button" class="xr-button">Enter VR</button>
+        <button id="ar-button" class="xr-button" style="display: none;">Enter AR</button>
+    </div>
 
     <div id="log"></div>
     <div id="viewport">
@@ -256,27 +285,68 @@
                                                                                                                                                                                                                                                             import SculptGL from 'SculptGL';
 
                                                                                                                                                                                                                                                             window.onload = async () => {
-                                                                                                                                                                                                                                                            // Reuse global screenLog
+                                                                                                                                                                                                                                                                // Reuse global screenLog
             const cls = console.log;
-                                                                                                                                                                                                                                                            const cerr = console.error;
+                                                                                                                                                                                                                                                                const cerr = console.error;
 
-                                                                                                                                                                                                                                                            console.log = function (...args) {
-                                                                                                                                                                                                                                                                // Update on-screen log if available
-                                                                                                                                                                                                                                                                const logEl = document.getElementById('log');
-                                                                                                                                                                                                                                                                if (logEl) {
-                                                                                                                                                                                                                                                                    const line = document.createElement('div');
-                                                                                                                                                                                                                                                                    line.textContent = args.join(' ');
-                                                                                                                                                                                                                                                                    logEl.appendChild(line);
-                                                                                                                                                                                                                                                                    logEl.scrollTop = logEl.scrollHeight;
+                                                                                                                                                                                                                                                                console.log = function (...args) {
+                                                                                                                                                                                                                                                                    // Update on-screen log if available
+                                                                                                                                                                                                                                                                    const logEl = document.getElementById('log');
+                                                                                                                                                                                                                                                                    if (logEl) {
+                                                                                                                                                                                                                                                                        const line = document.createElement('div');
+                                                                                                                                                                                                                                                                        line.textContent = args.join(' ');
+                                                                                                                                                                                                                                                                        logEl.appendChild(line);
+                                                                                                                                                                                                                                                                        logEl.scrollTop = logEl.scrollHeight;
+                                                                                                                                                                                                                                                                    }
+                                                                                                                                                                                                                                                                    cls.apply(console, args);
+                                                                                                                                                                                                                                                                };
+
+                                                                                                                                                                                                                                                                // Add Copy Button (Ensured logic)
+                                                                                                                                                                                                                                                                const logContainer = document.getElementById('log');
+                                                                                                                                                                                                                                                                if (logContainer) {
+                                                                                                                                                                                                                                                                    const btnCopy = document.createElement('button');
+                                                                                                                                                                                                                                                                    btnCopy.textContent = "Copy Log";
+                                                                                                                                                                                                                                                                    btnCopy.style.position = "sticky";
+                                                                                                                                                                                                                                                                    btnCopy.style.top = "0";
+                                                                                                                                                                                                                                                                    btnCopy.style.right = "0";
+                                                                                                                                                                                                                                                                    btnCopy.style.float = "right";
+                                                                                                                                                                                                                                                                    btnCopy.style.background = "#444";
+                                                                                                                                                                                                                                                                    btnCopy.style.color = "#fff";
+                                                                                                                                                                                                                                                                    btnCopy.style.border = "1px solid #666";
+                                                                                                                                                                                                                                                                    btnCopy.style.cursor = "pointer";
+                                                                                                                                                                                                                                                                    btnCopy.style.padding = "2px 5px";
+                                                                                                                                                                                                                                                                    btnCopy.style.fontSize = "12px";
+                                                                                                                                                                                                                                                                    btnCopy.style.opacity = "0.7";
+                                                                                                                                                                                                                                                                    btnCopy.style.zIndex = "1001"; // High z-index
+
+                                                                                                                                                                                                                                                                    btnCopy.onclick = () => {
+                                                                                                                                                                                                                                                                        const text = logContainer.innerText;
+                                                                                                                                                                                                                                                                        if (navigator.clipboard) {
+                                                                                                                                                                                                                                                                            navigator.clipboard.writeText(text).then(() => {
+                                                                                                                                                                                                                                                                                const oldText = btnCopy.textContent;
+                                                                                                                                                                                                                                                                                btnCopy.textContent = "Copied!";
+                                                                                                                                                                                                                                                                                setTimeout(() => btnCopy.textContent = "Copy Log", 1000);
+                                                                                                                                                                                                                                                                            });
+                                                                                                                                                                                                                                                                        } else {
+                                                                                                                                                                                                                                                                            // Fallback
+                                                                                                                                                                                                                                                                            const ta = document.createElement('textarea');
+                                                                                                                                                                                                                                                                            ta.value = text;
+                                                                                                                                                                                                                                                                            document.body.appendChild(ta);
+                                                                                                                                                                                                                                                                            ta.select();
+                                                                                                                                                                                                                                                                            document.execCommand('copy');
+                                                                                                                                                                                                                                                                            document.body.removeChild(ta);
+                                                                                                                                                                                                                                                                            btnCopy.textContent = "Copied!";
+                                                                                                                                                                                                                                                                            setTimeout(() => btnCopy.textContent = "Copy Log", 1000);
+                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                    };
+                                                                                                                                                                                                                                                                    logContainer.prepend(btnCopy);
                                                                                                                                                                                                                                                                 }
-                                                                                                                                                                                                                                                                cls.apply(console, args);
-                                                                                                                                                                                                                                                            };
 
             console.log("Initializing SculptGL for WebXR...");
 
 
                                                                                                                                                                                                                                                             // Show version on screen
-                                                                                                                                                                                                                                                                if (window.screenLog) window.screenLog("VERSION: v0.5.60 - Fix VR Height (Y=1.2)", "lime");
+                                                                                                                                                                                                                                                                if (window.screenLog) window.screenLog("SculptSVR v0.5.253", "lime");
 
             // Check HTTPS
             if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
@@ -304,35 +374,41 @@
             }
 
             // VR/AR Button Logic
-            const btn = document.getElementById('vr-button');
-            let sessionType = 'immersive-vr';
-
-            if ('xr' in navigator) {
-                // Prefer VR (Immersive VR) for Battery Savings
+                                                                                                                                                                                                                                                                const btnVR = document.getElementById('vr-button');
+                                                                                                                                                                                                                                                                const btnAR = document.getElementById('ar-button');
+                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                // Check VR
+                                                                                                                                                                                                                                                                if ('xr' in navigator) {
                 navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
                     if (supported) {
-                        sessionType = 'immersive-vr';
-                        btn.textContent = 'Enter VR';
-                        btn.addEventListener('click', onEnterVR);
+                        btnVR.textContent = 'Enter VR';
+                        btnVR.addEventListener('click', () => onEnterVR('immersive-vr'));
                     } else {
-                        // Fallback to AR if VR not supported
-                        navigator.xr.isSessionSupported('immersive-ar').then((arSupported) => {
-                            if (arSupported) {
-                                sessionType = 'immersive-ar';
-                                btn.textContent = 'Enter AR';
-                                btn.addEventListener('click', onEnterVR);
-                            } else {
-                                btn.disabled = true;
-                                btn.textContent = 'VR Not Supported';
-                            }
-                        });
+                        btnVR.style.display = 'none';
                     }
                 });
+
+                                                                                                                                                                                                                                                                    // Check AR
+                                                                                                                                                                                                                                                                    navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+                                                                                                                                                                                                                                                                        if (window.screenLog) window.screenLog("AR Supported: " + supported, supported ? "lime" : "orange");
+                                                                                                                                                                                                                                                                        if (supported) {
+                                                                                                                                                                                                                                                                            btnAR.textContent = 'Enter AR';
+                                                                                                                                                                                                                                                                            btnAR.style.display = 'block'; // Force block
+                                                                                                                                                                                                                                                                            btnAR.addEventListener('click', () => onEnterVR('immersive-ar'));
+                                                                                                                                                                                                                                                                        } else {
+                                                                                                                                                                                                                                                                            btnAR.style.display = 'none';
+                                                                                                                                                                                                                                                                            if (window.screenLog) window.screenLog("Hiding AR Button (Not Supported)", "orange");
+                                                                                                                                                                                                                                                                        }
+                                                                                                                                                                                                                                                                    }).catch((err) => {
+                                                                                                                                                                                                                                                                        console.error(err);
+                                                                                                                                                                                                                                                                        if (window.screenLog) window.screenLog("AR Check Error: " + err, "red");
+                                                                                                                                                                                                                                                                    });
             } else {
-                btn.style.display = 'none';
+                                                                                                                                                                                                                                                                    if (btnVR) btnVR.style.display = 'none';
+                                                                                                                                                                                                                                                                    if (btnAR) btnAR.style.display = 'none';
             }
 
-            async function onEnterVR() {
+                                                                                                                                                                                                                                                                async function onEnterVR(sessionType) {
                 if (app && app.startXRSession) {
                     app.startXRSession(sessionType);
                 } else {

@@ -30,6 +30,7 @@ var MeshData = function () {
     ///////////////////
 
     _facesABCD: null, // faces tri or quad, tri will have D:Utils.TRI_INDEX (Uint32Array)
+    _indexType: 5125, // gl.UNSIGNED_INT by default
 
     _faceEdges: null, // each face references the id edges (Uint32Array)
     _faceNormalsXYZ: null, // faces normals (Float32Array)

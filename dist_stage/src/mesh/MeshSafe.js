@@ -62,16 +62,6 @@ class Mesh {
   setFaces(fAr) {
     this._meshData._facesABCD = fAr;
     this._meshData._nbFaces = fAr.length / 4;
-    // Auto-detect index type for drawElements
-    if (fAr instanceof Uint16Array) {
-      this._meshData._indexType = 5123; // gl.UNSIGNED_SHORT
-    } else {
-      this._meshData._indexType = 5125; // gl.UNSIGNED_INT
-    }
-  }
-
-  getIndexType() {
-    return this._meshData._indexType || 5125; // Default to UNSIGNED_INT
   }
 
   setTexCoords(tAr) {

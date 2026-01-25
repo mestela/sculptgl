@@ -8,8 +8,8 @@ class Background {
     this._main = main;
     this._gl = gl; // webgl context
 
-    this._vertexBuffer = new Buffer(gl, gl.ARRAY_BUFFER, gl.STATIC_DRAW); // vertices buffer
-    this._texCoordBuffer = new Buffer(gl, gl.ARRAY_BUFFER, gl.STATIC_DRAW); // tex coord buffer
+    this._vertexBuffer = new Buffer(gl, gl.ARRAY_BUFFER, gl.STATIC_DRAW, "BG_Vert"); // vertices buffer
+    this._texCoordBuffer = new Buffer(gl, gl.ARRAY_BUFFER, gl.STATIC_DRAW, "BG_Tex"); // tex coord buffer
     this._fill = true; // if the canvas should be fille by the background
 
     this._monoTex = null;

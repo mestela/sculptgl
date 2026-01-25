@@ -193,7 +193,8 @@ ShaderBase.drawBuffer = function (mesh) {
     gl.drawArrays(mesh.getMode(), 0, mesh.getCount());
   } else {
     mesh.getIndexBuffer().bind();
-    gl.drawElements(mesh.getMode(), mesh.getCount(), gl.UNSIGNED_INT, 0);
+    var idxType = mesh.getIndexType ? mesh.getIndexType() : gl.UNSIGNED_INT;
+    gl.drawElements(mesh.getMode(), mesh.getCount(), idxType, 0);
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, null);
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);

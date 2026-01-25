@@ -20,7 +20,7 @@ ShaderWireframe.vertex = [
   'void main() {',
   '  vec4 vertex4 = vec4(aVertex, 1.0);',
   '  vec4 pos = uMVP * mix(vertex4, uEM * vertex4, aMaterial.z);',
-  '  pos[3] += 0.0001;',
+  '  pos.z -= 0.002 * pos.w;', // Pull wireframe closer to camera
   '  gl_Position = pos;',
   '}'
 ].join('\n');

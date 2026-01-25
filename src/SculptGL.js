@@ -508,7 +508,7 @@ class SculptGL extends Scene {
       if (action === Enums.Action.SCULPT_EDIT) {
         Multimesh.RENDER_HINT = Multimesh.SCULPT;
         this._sculptManager.update(this);
-        if (this.getMesh().isDynamic)
+        if (this.getMesh() && this.getMesh().isDynamic)
           this._gui.updateMeshInfo();
       }
     }
@@ -580,7 +580,6 @@ class SculptGL extends Scene {
   }
 
   getXRMode() {
-    // Default to 'immersive-vr' if undefined (or null)
     return this._currentXRMode;
   }
 }

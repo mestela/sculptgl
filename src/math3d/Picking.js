@@ -163,7 +163,7 @@ class Picking {
 
     for (var i = 0, nbMeshes = meshes.length; i < nbMeshes; ++i) {
       var mesh = meshes[i];
-      if (!mesh.isVisible())
+      if (!mesh.isVisible() || mesh.isPickable === false)
         continue;
 
       mat4.invert(_TMP_INV, mesh.getMatrix());
@@ -259,7 +259,7 @@ class Picking {
 
     for (var i = 0, nbMeshes = meshes.length; i < nbMeshes; ++i) {
       var mesh = meshes[i];
-      if (!mesh.isVisible()) continue;
+      if (!mesh.isVisible() || mesh.isPickable === false) continue;
 
       mat4.invert(_TMP_INV, mesh.getMatrix());
       vec3.transformMat4(localCenter, worldCenter, _TMP_INV);

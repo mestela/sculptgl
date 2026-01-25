@@ -45,26 +45,27 @@ class SculptBase {
 
     // VR Bypass: If in VR, we assume picking is already done by handleXRInput
     if (!main._xrSession) {
-      if (!picking.intersectionMouseMeshes())
+      if (!picking.intersectionMouseMeshes() && !this._allowAir)
         return false;
     } else {
-      // In VR, just check if we have a mesh picked
-      if (!picking.getMesh()) return false;
+      // In VR, just check if we have a mesh picked OR allowAir
+      if (!picking.getMesh() && !this._allowAir) return false;
     }
 
     var mesh = main.setOrUnsetMesh(picking.getMesh(), ctrl);
-    if (!mesh)
+    // If allowAir, we might proceed without a mesh selection
+    if (!mesh && !this._allowAir)
       return false;
 
     picking.initAlpha();
     var pickingSym = main.getSculptManager().getSymmetry() ? main.getPickingSymmetry() : null;
-    if (pickingSym) {
+    if (pickingSym && mesh) {
       pickingSym.intersectionMouseMesh(mesh);
       pickingSym.initAlpha();
     }
 
-    console.log("SculptBase: pushState called via start()");
-    if (window.screenLog) window.screenLog("SculptBase: Start Stroke (Push State)", "green");
+    // console.log("SculptBase: pushState called via start()");
+    // if (window.screenLog) window.screenLog("SculptBase: Start Stroke (Push State)", "green");
     this.pushState();
     this._lastMouseX = main._mouseX;
     this._lastMouseY = main._mouseY;
@@ -104,8 +105,10 @@ class SculptBase {
         if (inter) this._lastInter = [inter[0], inter[1], inter[2]];
       }
       return;
+      return;
     } else {
-      if (window.screenLog) window.screenLog("SculptBase: startSculpt (VR Check FAIL)", "red");
+      // Fallback for Desktop Mouse debugging
+      // if (window.screenLog) window.screenLog("SculptBase: VR Check FAIL - Fallback to Mouse", "orange");
     }
 
     this.sculptStroke();
@@ -123,10 +126,12 @@ class SculptBase {
     if (isSculpting && !canBeContinuous)
       return;
 
-    if (isSculpting)
-      picking.intersectionMouseMesh();
-    else
+    if (isSculpting) {
+      var mesh = this.getMesh();
+      if (mesh) picking.intersectionMouseMesh(mesh);
+    } else {
       picking.intersectionMouseMeshes();
+    }
 
     var mesh = picking.getMesh();
     if (mesh && main.getSculptManager().getSymmetry())

@@ -1,11 +1,12 @@
 class Buffer {
 
-  constructor(gl, type, hint) {
+  constructor(gl, type, hint, tag = "Untagged") {
     this._gl = gl; // webgl context
     this._buffer = gl.createBuffer(); // the buffer
     this._type = type; // the type (vert data vs index)
     this._hint = hint; //the buffer update hint
     this._size = 0; // the size of the buffer
+    this._tag = tag;
   }
 
   bind() {
@@ -22,6 +23,9 @@ class Buffer {
   update(data, nbElts) {
     this.bind();
 
+    // Clear previous errors
+    while (this._gl.getError() !== this._gl.NO_ERROR) { };
+
     if (nbElts !== undefined && nbElts !== data.length)
       data = data.subarray(0, nbElts);
 
@@ -35,7 +39,8 @@ class Buffer {
     var err = this._gl.getError();
     if (err !== this._gl.NO_ERROR) {
       console.error("Buffer Update Error:", err);
-      if (window.screenLog) window.screenLog(`Buffer Err: ${err}`, "red");
+      var typeStr = (this._type === 34962) ? "ARRAY_BUFFER" : ((this._type === 34963) ? "ELEMENT_ARRAY_BUFFER" : "UNKNOWN");
+      if (window.screenLog) window.screenLog(`Buf Err ${err} (${typeStr}) [${this._tag}] len=${data.length}`, "red");
     }
   }
 }

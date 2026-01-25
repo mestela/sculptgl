@@ -7,7 +7,7 @@ class SculptManager {
   constructor(main) {
     this._main = main;
 
-    this._toolIndex = Enums.Tools.MOVE;
+    this._toolIndex = Enums.Tools.VOXEL;
     this._tools = []; // the sculpting tools
 
     // symmetry stuffs
@@ -97,9 +97,14 @@ class SculptManager {
     this.getCurrentTool().update();
   }
 
-  updateXR(picking) {
-    if (this._tools[this._toolIndex].updateXR) {
-      this._tools[this._toolIndex].updateXR(picking);
+  updateXR(picking, isPressed, origin, dir) {
+    var tool = this.getCurrentTool();
+    // if (window.screenLog && Math.random() < 0.01) window.screenLog(`ManagerXR: ToolIdx=${this._toolIndex} Tool=${!!tool}`, "orange");
+
+    if (tool && tool.updateXR) {
+      tool.updateXR(picking, isPressed, origin, dir);
+    } else {
+      if (window.screenLog && isPressed && Math.random() < 0.05) window.screenLog(`ManagerXR: No updateXR for tool ${this._toolIndex}`, "red");
     }
   }
 

@@ -287,4 +287,13 @@ GuiTools[Enums.Tools.TRANSFORM] = {
   init: function () {}
 };
 
+GuiTools[Enums.Tools.VOXEL] = {
+  _ctrls: [],
+  init: function (tool, fold, main) {
+    // Voxel tools might have radius/color?
+    // For now just basic placeholder
+    // this._ctrls.push(addCtrlRadius(tool, fold, this, main));
+  }
+};
+
 export default GuiSculptingTools;

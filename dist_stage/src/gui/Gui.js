@@ -81,6 +81,10 @@ class Gui {
     extra.addTitle(TR('resolution'));
     extra.addSlider('', this._main._pixelRatio, this.onPixelRatio.bind(this), 0.5, 2.0, 0.02);
 
+    extra.addTitle('Voxel Settings');
+    extra.addSlider('Res', 128, this.onVoxelRes.bind(this), 32, 256, 16);
+    extra.addSlider('Rad Mult', 50.0, this.onVoxelRad.bind(this), 1.0, 100.0, 1.0);
+
     this.addAboutButton();
 
     this.updateMesh();
@@ -151,6 +155,18 @@ class Gui {
     this._xhrs[notifName] = Export[fName](this._main, notif);
   }
 
+  onVoxelRes(val) {
+    if (!this._main._sculptManager) return;
+    var tool = this._main._sculptManager.getTool(13); // Enums.Tools.VOXEL = 13
+    if (tool && tool.setResolution) tool.setResolution(val);
+  }
+
+  onVoxelRad(val) {
+    if (!this._main._sculptManager) return;
+    var tool = this._main._sculptManager.getTool(13);
+    if (tool && tool.setRadiusMultiplier) tool.setRadiusMultiplier(val);
+  }
+
   onPixelRatio(val) {
     this._main._pixelRatio = val;
     this._main.onCanvasResize();
@@ -173,6 +189,7 @@ class Gui {
   }
 
   updateMesh() {
+    if (!this._ctrlRendering) return;
     this._ctrlRendering.updateMesh();
     this._ctrlTopology.updateMesh();
     this._ctrlSculpting.updateMesh();
