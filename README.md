@@ -45,7 +45,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - Symmetry (still not 100%, but getting there)
     - Export OBJ (will save to Downloads)
     - Import OBJ (will jump out of fullscreen mode and open a file browser)
-    - **Voxel Sculpting**: New Voxel Tool with additive support (Basic implementation).
+    - **Voxel Sculpting**: Voxel Tool with additive/subtractive support and Undo/Redo.
 
 ## Todo
 - **Functionality**:
