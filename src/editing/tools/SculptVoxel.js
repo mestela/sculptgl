@@ -5,6 +5,7 @@ import { vec3, mat4 } from 'gl-matrix';
 import Utils from 'misc/Utils';
 import Primitives from 'drawables/Primitives';
 import Enums from 'misc/Enums';
+import Geometry from 'math3d/Geometry';
 
 class SculptVoxel extends SculptBase {
 
@@ -104,7 +105,8 @@ class SculptVoxel extends SculptBase {
       var picking = main.getPicking();
 
       // Check if we hit something (Debug Cube is pickable)
-      if (!picking.getMesh()) {
+      // Allow if we have a Plane Lock (Drawing into air)
+      if (!picking.getMesh() && !this._planePoint) {
         // if (window.screenLog && (this._lastUpdate % 30 === 0)) window.screenLog("Pick: Miss", "grey");
         return;
       }
@@ -115,6 +117,48 @@ class SculptVoxel extends SculptBase {
       }
 
       var worldPos = picking.getIntersectionPoint();
+
+      // Desktop: Late-Bind Plane Lock (if start() missed)
+      if (!this._planePoint && !main._xrSession && worldPos) {
+        const mesh = picking.getMesh();
+        // Verify we aren't locking to the Voxel Mesh itself if it's not pickable?
+        // Actually we WANT to lock to whatever we hit.
+        if (mesh) {
+          // worldPos is LOCAL. Convert to WORLD.
+          const realWorldPos = vec3.create();
+          vec3.transformMat4(realWorldPos, worldPos, mesh.getMatrix());
+
+          this._planePoint = vec3.clone(realWorldPos);
+          const cam = this._main.getCamera();
+          const eye = cam.computePosition();
+          this._planeNormal = vec3.create();
+          vec3.sub(this._planeNormal, eye, realWorldPos);
+          vec3.normalize(this._planeNormal, this._planeNormal);
+        }
+      }
+
+      // Desktop Plane Lock Override
+      if (this._planePoint && this._planeNormal && !main._xrSession) {
+        const mouseX = main._mouseX;
+        const mouseY = main._mouseY;
+        const vNear = picking.unproject(mouseX, mouseY, 0.0);
+        const vFar = picking.unproject(mouseX, mouseY, 0.1);
+        const lockInter = vec3.create();
+        const hit = Geometry.intersectLinePlane(vNear, vFar, this._planePoint, this._planeNormal, lockInter);
+        if (hit) {
+          // lockInter is in WORLD SPACE. 
+          // We need GRID COORDINATES (Local Space of Voxel Mesh).
+          // Transform: World -> Container -> Scaled -> Grid
+
+          // 1. World -> Container
+          vec3.transformMat4(worldPos, lockInter, this._invGridMatrix);
+
+          // 2. Container -> Grid ((Pos - Min) / Step)
+          vec3.sub(worldPos, worldPos, this._voxelState.min);
+          vec3.scale(worldPos, worldPos, 1.0 / this._voxelState.step);
+        }
+      }
+
       if (!worldPos) return;
 
       // Picking returns intersection in MESH LOCAL SPACE.
@@ -140,15 +184,15 @@ class SculptVoxel extends SculptBase {
       // box size is 100.0. 
       // Let's use smaller radius for mouse: 0.1 (10cm)
       // VR Brush Radius: 5.0
-      var radius = 5.0;
+      // Use dynamic radius or consistent default
+      var radius = (this._radius !== undefined) ? Math.max(0.5, this._radius * 0.2) : 5.0;
+      if (this._radiusMult) radius *= this._radiusMult;
+
       var color = [0.2, 0.8, 0.2]; // Green brush
 
       var changed = this._voxelState.addSphere(localPos, radius, color);
 
       if (changed) {
-        if (window.screenLog) {
-          window.screenLog(`VoxelMod: ${localPos[0].toFixed(2)},${localPos[1].toFixed(2)}`, "lime");
-        }
         this.updateMesh();
       }
 
@@ -361,6 +405,29 @@ class SculptVoxel extends SculptBase {
 
     const res = super.start(ctrl);
 
+    // Desktop: Lock Plane for Stroke (Prevent Accumulation)
+    if (!this._main._xrSession) {
+      const picking = this._main.getPicking();
+      const inter = picking.getIntersectionPoint();
+      const mesh = picking.getMesh();
+
+      if (inter && mesh) {
+        // inter is LOCAL. Convert to WORLD for Plane Lock.
+        const realWorldPos = vec3.create();
+        vec3.transformMat4(realWorldPos, inter, mesh.getMatrix());
+
+        this._planePoint = vec3.clone(realWorldPos);
+        const cam = this._main.getCamera();
+        const eye = cam.computePosition();
+        this._planeNormal = vec3.create();
+        vec3.sub(this._planeNormal, eye, realWorldPos);
+        vec3.normalize(this._planeNormal, this._planeNormal);
+      } else {
+        this._planePoint = null;
+        this._planeNormal = null;
+      }
+    }
+
     // Debug Picking Failure
     if (!res) {
       // If start failed, it means picking missed. 
@@ -392,7 +459,18 @@ class SculptVoxel extends SculptBase {
   }
 
   stroke(picking) {
-    const inter = picking.getIntersectionPoint();
+    let inter = picking.getIntersectionPoint();
+
+    // Desktop Plane Lock Override
+    if (this._planePoint && this._planeNormal && !this._main._xrSession) {
+      const mouseX = this._main._mouseX;
+      const mouseY = this._main._mouseY;
+      const vNear = picking.unproject(mouseX, mouseY, 0.0);
+      const vFar = picking.unproject(mouseX, mouseY, 0.1);
+      const lockInter = vec3.create();
+      const hit = Geometry.intersectLinePlane(vNear, vFar, this._planePoint, this._planeNormal, lockInter);
+      if (hit) inter = lockInter;
+    }
 
     if (!inter) {
       if (window.screenLog && Math.random() < 0.05) window.screenLog("Voxel Stroke: No Intersection", "red");
