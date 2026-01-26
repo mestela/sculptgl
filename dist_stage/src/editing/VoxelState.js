@@ -210,6 +210,7 @@ class VoxelState {
       if (ixMax > this._activeMax[0]) this._activeMax[0] = ixMax;
       if (iyMax > this._activeMax[1]) this._activeMax[1] = iyMax;
       if (izMax > this._activeMax[2]) this._activeMax[2] = izMax;
+      if (window.screenLog && Math.random() < 0.2) window.screenLog(`VS.add: Expanded [${ixMin},${iyMin},${izMin}]-[${ixMax},${iyMax},${izMax}]`, "grey");
     }
 
     return changed;
@@ -236,6 +237,7 @@ class VoxelState {
         Math.min(this._dims[2], this._activeMax[2] + 2)
       ]
     };
+    if (window.screenLog) window.screenLog(`VS.compute: Bounds [${bounds.min}] to [${bounds.max}]`, "cyan");
 
     // Use SurfaceNets (Dual Contouring style)
     const res = SurfaceNets.computeSurface(this._voxels, bounds); // Pass bounds!
@@ -243,7 +245,8 @@ class VoxelState {
     // Log Raw Stats
     // if (window.screenLog) window.screenLog(`VS: Generated ${res.vertices.length/3} verts, ${res.faces.length/4} quads`, "grey");
 
-    // this.sanitizeMesh(res); // DISABLE SANITIZATION (Was deleting all faces)
+    this.sanitizeMesh(res);
+
 
     return res;
   }
@@ -260,6 +263,7 @@ class VoxelState {
     const v1 = vec3.create();
     const v2 = vec3.create();
     const v3 = vec3.create();
+    const normal = vec3.create();
 
     for (let i = 0; i < faces.length; i += 3) { // Assume TRI_INDEX is removed or handled? 
       // Wait, MarchingCubes/SurfaceNets might produce [a, b, c, TRI_INDEX]?
@@ -331,28 +335,62 @@ class VoxelState {
         v2[0] = vertices[i2 * 3]; v2[1] = vertices[i2 * 3 + 1]; v2[2] = vertices[i2 * 3 + 2];
         v3[0] = vertices[i3 * 3]; v3[1] = vertices[i3 * 3 + 1]; v3[2] = vertices[i3 * 3 + 2];
 
+        // Create explicit output vector to avoid aliasing (ab = ab x ac) issues
         vec3.sub(ab, v2, v1);
         vec3.sub(ac, v3, v1);
-        vec3.cross(ab, ab, ac);
-        if (vec3.length(ab) < 1e-9) {
+        vec3.cross(normal, ab, ac);
+        if (vec3.length(normal) < 1e-6) {
           degenerate = true;
         }
 
         if (!degenerate && isQuad) {
           // Check second triangle of quad
-          v1[0] = vertices[i3 * 3]; v1[1] = vertices[i3 * 3 + 1]; v1[2] = vertices[i3 * 3 + 2]; // reuse v3 as start?
-          // Quad is usually 0-1-2-3. Triangles: 0-1-2 and 0-2-3 (or 2-3-0)
-          // Verts: v1, v2, v3, v4
-          // Tri1: v1,v2,v3 (checked above)
-          // Tri2: v1,v3,v4
-          const v4 = vec3.create(); // allocate locally or use temp?
+          v1[0] = vertices[i3 * 3]; v1[1] = vertices[i3 * 3 + 1]; v1[2] = vertices[i3 * 3 + 2];
+          const v4 = vec3.create();
           v4[0] = vertices[i4 * 3]; v4[1] = vertices[i4 * 3 + 1]; v4[2] = vertices[i4 * 3 + 2];
 
-          // Reuse v1(i1), v3(i3)
-          vec3.sub(ab, v3, v1);
-          vec3.sub(ac, v4, v1);
-          vec3.cross(ab, ab, ac);
-          if (vec3.length(ab) < 1e-9) {
+          // Reuse v1(i3)
+          // v3 var holds i3 coords? No, used as temp.
+          // Let's re-fetch to be safe or reuse v1.
+          // v1 has i3.
+          // We need tri (i1, i3, i4)?
+          // Original code: v1=i3. sub(ab, v3, v1). v3 was i3?
+          // Wait, previous loop: v3=i3.
+          // So sub(ab, v3, v1) -> sub(ab, i3, i3) = 0?
+          // AH.
+          // Original code:
+          // v1 = i3.
+          // vec3.sub(ab, v3, v1).
+          // v3 was SET to i3 in previous block (lines 336).
+          // So v3 is i3. v1 is i3.
+          // So ab = 0.
+          // Area = 0.
+          // SECOND TRIANGLE WAS ALWAYS DEGENERATE because of logic error?
+          // But First Triangle was also degenerate?
+          // Line 340: vec3.cross(ab, ab, ac). Aliasing.
+
+          // Let's fix FIRST triangle aliasing first.
+          // Then checking Second triangle logic.
+          // v1=i3.
+          // v3 is still i3 from line 336.
+          // So v1 == v3.
+          // We need (i1, i3, i4).
+          // i1 coords are in... wait, we overwrote v1/v2/v3?
+          // We need fresh coords.
+
+          // Let's fetch clean coords for Tri 2.
+          const t1 = vec3.create(); // i1
+          const t3 = vec3.create(); // i3
+          const t4 = vec3.create(); // i4
+
+          t1[0] = vertices[i1 * 3]; t1[1] = vertices[i1 * 3 + 1]; t1[2] = vertices[i1 * 3 + 2];
+          t3[0] = vertices[i3 * 3]; t3[1] = vertices[i3 * 3 + 1]; t3[2] = vertices[i3 * 3 + 2];
+          t4[0] = vertices[i4 * 3]; t4[1] = vertices[i4 * 3 + 1]; t4[2] = vertices[i4 * 3 + 2];
+
+          vec3.sub(ab, t3, t1);
+          vec3.sub(ac, t4, t1);
+          vec3.cross(normal, ab, ac);
+          if (vec3.length(normal) < 1e-6) {
             degenerate = true;
           }
         }
@@ -361,13 +399,23 @@ class VoxelState {
       if (!degenerate) {
         newFaces.push(i1, i2, i3, i4);
       } else {
+        if (badFaces < 5) {
+          const vLog = `F${i / 4} R: v1=[${v1[0].toFixed(2)},${v1[1].toFixed(2)},${v1[2].toFixed(2)}] v2=[${v2[0].toFixed(2)},${v2[1].toFixed(2)},${v2[2].toFixed(2)}] Area=${vec3.length(normal).toExponential(2)}`;
+          console.warn(vLog);
+          if (window.screenLog) window.screenLog(vLog, "red");
+        }
         badFaces++;
       }
     }
 
     if (badFaces > 0) {
-      // window.screenLog(`Sanitized: Removed ${badFaces} degenerate faces`, "orange");
-      res.faces = new Uint32Array(newFaces);
+      const msg = `Sanitized: Removed ${badFaces} degenerate faces (Total: ${faces.length / 4})`;
+      console.warn(msg);
+      if (window.screenLog) window.screenLog(msg, "orange");
+      res.faces = new Uint32Array(newFaces); 
+    } else {
+      console.log(`Sanitized: Clean mesh (0/${faces.length / 4} bad)`);
+      if (window.screenLog) window.screenLog(`Sanitized: Clean mesh (0/${faces.length / 4} bad)`, "grey");
     }
   }
 

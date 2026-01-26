@@ -50,6 +50,188 @@ class SculptGL extends Scene {
     this._shiftKey = false; // Track shift key globally
 
     this.initHammer();
+    // this._gui.initGui(); // REMOVED: Called in Scene.start(), premature call caused crash
+
+    // Debug Helpers for Desktop Testing
+    window.debug = {
+      main: this,
+      setTool: (id) => {
+        // Enums.Tools.VOXEL is 13.
+        const tools = this._sculptManager._tools;
+        if (!tools[id]) {
+          console.error(`Tool ID ${id} not found. Available: VOXEL=${Enums.Tools.VOXEL}, BRUSH=${Enums.Tools.BRUSH}`);
+          return;
+        }
+        this._sculptManager.setToolIndex(id);
+        console.log("Tool set to", id, tools[id].constructor.name);
+      },
+      voxelStroke: () => {
+        const tool = this._sculptManager.getTool(Enums.Tools.VOXEL);
+        if (!tool) return console.error("Voxel tool not found");
+        // tool.stroke(0, 0, 0, 1.0); // x, y, pressure, isLast
+        // Actually, voxel stroke logic is complex.
+        // Let's use the 'addSphere' direct call if possible, or simulate input.
+        // But tool.stroke requires event pointers.
+        // Let's call the logic directly:
+        const vs = tool._voxelState;
+        // Reset
+        vs.clear();
+        // Add Sphere
+        // ix, iy, iz, radius, value
+        // tool._edit(...) handles this.
+        // Let's just emulate a stroke:
+        if (tool._voxelState) {
+          // VoxelState is centered at 0,0,0 (min=-50, max=50)
+          // Radius should be in World Units (e.g. 25.0 = 1/4 of box)
+          vs.addSphere([0, 0, 0], 25.0, 1.0);
+          tool.updateMesh();
+          window.screenLog("Voxel Stroke Applied (Sphere at 0,0,0 r=25)", "lime");
+        } else {
+          window.screenLog("Voxel State not ready", "red");
+        }
+      },
+      bake: () => {
+        const tool = this._sculptManager.getTool(Enums.Tools.VOXEL);
+        if (tool && tool.bakeToMesh) {
+          tool.bakeToMesh();
+          // window.screenLog("Debug Bake Triggered", "lime"); 
+        } else {
+          window.screenLog("Voxel Tool not available for bake", "red");
+        }
+      },
+      checkMesh: () => {
+        const mesh = this.getMesh();
+        if (!mesh) return console.log("No Mesh");
+        console.log("Mesh:", mesh);
+        console.log("Verts:", mesh.getNbVertices());
+        console.log("Faces:", mesh.getNbFaces());
+        console.log("Opacity:", mesh.getOpacity());
+        console.log("FlatShading:", mesh.getFlatShading());
+        console.log("Shader:", mesh.getShaderType());
+        // Check Normals
+        const norms = mesh.getNormals();
+        let zero = 0;
+        if (norms) {
+          for (let i = 0; i < Math.min(norms.length, 30); i += 3) {
+            console.log(`N[${i / 3}]: ${norms[i].toFixed(2)}, ${norms[i + 1].toFixed(2)}, ${norms[i + 2].toFixed(2)}`);
+          }
+          // Count zero length
+          for (let i = 0; i < norms.length; i += 3) {
+            if (norms[i] === 0 && norms[i + 1] === 0 && norms[i + 2] === 0) zero++;
+          }
+        }
+        console.log("Zero Len Normals:", zero);
+      },
+      setShader: (type) => {
+        if (!this._mesh) return;
+        type = type.toUpperCase();
+        if (Enums.Shader[type] !== undefined) {
+          this._mesh.setShaderType(Enums.Shader[type]);
+          this.render();
+          window.screenLog(`Shader set to ${type}`, "lime");
+        } else {
+          window.screenLog(`Unknown shader: ${type}`, "red");
+        }
+      },
+      toggleCulling: () => {
+        const gl = this._gl;
+        if (!gl) return;
+        if (gl.isEnabled(gl.CULL_FACE)) {
+          gl.disable(gl.CULL_FACE);
+          window.screenLog("Culling DISABLED", "lime");
+        } else {
+          gl.enable(gl.CULL_FACE);
+          window.screenLog("Culling ENABLED", "red");
+        }
+        this.render();
+      },
+      flipVoxelWinding: () => {
+        if (this._sculptManager.getCurrentTool().flipWinding) {
+          this._sculptManager.getCurrentTool().flipWinding();
+          window.screenLog("Voxel Winding FLIPPED", "lime");
+          this.render();
+        } else {
+          window.screenLog("Current tool has no flipWinding", "red");
+        }
+      },
+      toggleWireframe: () => {
+        const mesh = this.getMesh();
+        if (!mesh) return;
+        const rd = mesh.getRenderData();
+        rd._showWireframe = !rd._showWireframe;
+        console.log(`Wireframe: ${rd._showWireframe}`);
+        this.render();
+      },
+      sceneInfo: () => {
+        // Fallback for lost context
+        let scene = null;
+        if (this && this.getMeshes) {
+          scene = this; // 'this' is SculptGL
+        } else if (window.sculptgl_instance) {
+          scene = window.sculptgl_instance;
+        }
+
+        if (!scene) {
+          console.error("SculptGL Instance missing");
+          return;
+        }
+
+        const meshes = scene.getMeshes();
+        window.screenLog(`Scene: ${meshes.length} Meshes`, "white");
+        meshes.forEach((m, i) => {
+          const v = m.getNbVertices();
+          const f = m.getNbFaces();
+          const vis = m.isVisible() ? "VISIBLE" : "HIDDEN";
+          const world = m.getMatrix();
+          const pos = `[${world[12].toFixed(1)},${world[13].toFixed(1)},${world[14].toFixed(1)}]`;
+          const scale = world[0].toFixed(3);
+          const rd = m.getRenderData();
+          const mat = `Shd=${rd._shaderType} Wire=${rd._showWireframe} Op=${rd._alpha}`;
+          window.screenLog(`#${i} ID=${m.getID()} ${vis} ${mat} V=${v} F=${f} Pos=${pos} S=${scale}`, "cyan");
+        });
+      },
+      isolate: (id) => {
+        const meshes = this.getMeshes();
+        let found = false;
+        meshes.forEach(m => {
+          if (m.getID() === id) {
+            m.setVisible(true);
+            found = true;
+          } else {
+            m.setVisible(false);
+          }
+        });
+        this.render();
+        window.screenLog(found ? `Isolated Mesh ${id}` : `Mesh ${id} not found`, found ? "lime" : "red");
+      },
+      hide: (id) => {
+        const meshes = this.getMeshes();
+        meshes.forEach(m => {
+          if (m.getID() === id) m.setVisible(false);
+        });
+        this.render();
+      },
+      show: (id) => {
+        const meshes = this.getMeshes();
+        meshes.forEach(m => {
+          if (m.getID() === id) m.setVisible(true);
+        });
+        this.render();
+      },
+      forceVerify: () => {
+        // Force all meshes to be visible and small opacity to see overlap
+        const meshes = this.getMeshes();
+        meshes.forEach(m => {
+          m.setVisible(true);
+          m.setOpacity(0.5);
+        });
+        this.render();
+        window.screenLog("All Visible + Opacity 0.5", "lime");
+      },
+      // Force render
+      render: () => { this.render(); }
+    };
+
     this.addEvents();
   }
 

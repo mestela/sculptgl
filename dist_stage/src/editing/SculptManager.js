@@ -7,7 +7,7 @@ class SculptManager {
   constructor(main) {
     this._main = main;
 
-    this._toolIndex = Enums.Tools.VOXEL;
+    this._toolIndex = Enums.Tools.BRUSH;
     this._tools = []; // the sculpting tools
 
     // symmetry stuffs

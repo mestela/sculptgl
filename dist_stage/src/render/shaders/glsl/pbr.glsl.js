@@ -4,7 +4,7 @@ const shader = `#define PI 3.1415926535897932384626433832795
 #define INV_LOG2 1.4426950408889634073599246810019
 
 uniform sampler2D uTexture0;
-uniform float uExposure;
+// uniform float uExposure; // Defined in ShaderBase
 uniform mat3 uIblTransform;
 uniform vec3 uSPH[9];
 

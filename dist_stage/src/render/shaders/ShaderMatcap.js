@@ -89,7 +89,7 @@ ShaderMatcap.fragment = [
   'varying vec3 vNormal;',
   'varying vec3 vColor;',
   'uniform float uAlpha;',
-  'uniform int uFlat;', // 0 or 1
+  // 'uniform int uFlat;', // Defined in ShaderBase.strings.fragColorUniforms
   'uniform mat3 uRotCorrection;', // Stabilizes normals to Horizon
   ShaderBase.strings.fragColorUniforms,
   ShaderBase.strings.fragColorFunction,

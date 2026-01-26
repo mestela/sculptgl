@@ -87,6 +87,10 @@ class Mesh {
     this._meshData._materialsPBR = mAr;
   }
 
+  setNormals(nAr) {
+    this._meshData._normalsXYZ = nAr;
+  }
+
   setVerticesDuplicateStartCount(startCount) {
     this._meshData._duplicateStartCount = startCount;
   }

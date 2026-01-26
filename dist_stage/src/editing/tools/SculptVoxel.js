@@ -641,7 +641,8 @@ class SculptVoxel extends SculptBase {
       mat4.scale(worldMat, worldMat, [step, step, step]);
 
       if (window.screenLog) {
-        // window.screenLog(`FinalMat: Pos=${worldMat[12].toFixed(2)},${worldMat[13].toFixed(2)},${worldMat[14].toFixed(2)} Scale=${worldMat[0].toFixed(2)}`, "lime");
+        window.screenLog(`VS: step=${step.toFixed(4)} min=[${this._voxelState.min.join(',')}]`, "cyan");
+        window.screenLog(`Mat: Pos=[${worldMat[12].toFixed(1)},${worldMat[13].toFixed(1)},${worldMat[14].toFixed(1)}] Scale=${worldMat[0].toFixed(4)}`, "cyan");
       }
 
       if (window.screenLog) window.screenLog("Voxel: Mesh Created", "green");
@@ -666,29 +667,7 @@ class SculptVoxel extends SculptBase {
     this._voxelMesh.updateGeometry();
 
     // BAND-AID: Fix NaNs and Infinities in Normals
-    const normals = this._voxelMesh.getNormals();
-    let nanCount = 0;
-    let zeroCount = 0;
-    let infCount = 0;
-    for (let i = 0; i < normals.length; i += 3) {
-      if (!Number.isFinite(normals[i]) || !Number.isFinite(normals[i + 1]) || !Number.isFinite(normals[i + 2])) {
-        normals[i] = 1.0; normals[i + 1] = 0.0; normals[i + 2] = 0.0;
-        infCount++;
-      }
-      if (isNaN(normals[i]) || isNaN(normals[i + 1]) || isNaN(normals[i + 2])) { // redundant if isFinite used, but keeping for safety
-        normals[i] = 1.0; normals[i + 1] = 0.0; normals[i + 2] = 0.0;
-        nanCount++;
-      }
-      // Check for Zero Length Normal
-      if (normals[i] === 0 && normals[i + 1] === 0 && normals[i + 2] === 0) {
-        normals[i] = 0.0; normals[i + 1] = 1.0; normals[i + 2] = 0.0; // Force UP
-        zeroCount++;
-      }
-    }
-    if (nanCount > 0 || zeroCount > 0 || infCount > 0) {
-      if (window.screenLog) window.screenLog(`FIXED: NaN:${nanCount} Inf:${infCount} Zero:${zeroCount}`, "orange");
-      this._voxelMesh.updateNormalBuffer();
-    }
+    this._fixNormals(this._voxelMesh);
 
     // BAND-AID: Fix NaN Materials/Colors (Critical for ShaderFlat vMasking)
     const materials = this._voxelMesh.getMaterials();
@@ -701,7 +680,7 @@ class SculptVoxel extends SculptBase {
         }
       }
       if (nanMat > 0) {
-        if (window.screenLog) window.screenLog(`FIXED: ${nanMat} NaN Materials`, "red");
+        // if (window.screenLog) window.screenLog(`FIXED: ${nanMat} NaN Materials`, "red");
         this._voxelMesh.updateMaterialBuffer();
       }
     }
@@ -717,7 +696,7 @@ class SculptVoxel extends SculptBase {
         }
       }
       if (nanColor > 0) {
-        if (window.screenLog) window.screenLog(`FIXED: ${nanColor} NaN/Inf Colors`, "red");
+        // if (window.screenLog) window.screenLog(`FIXED: ${nanColor} NaN/Inf Colors`, "red");
         this._voxelMesh.updateColorBuffer();
       }
     }
@@ -781,6 +760,21 @@ class SculptVoxel extends SculptBase {
     const vAr = new Float32Array(this._voxelMesh.getVertices()); // Clone
     const fAr = new Uint32Array(this._voxelMesh.getFaces()); // Clone
 
+    // 1b. Apply Transform to Vertices (Freeze Transform)
+    // The voxel mesh is in Grid Coordinates (0..64) scaled/translated by getMatrix()
+    const padding = 0; // SurfaceNets might return vertices in 0..64 range
+    const mat = this._voxelMesh.getMatrix();
+    const temp = vec3.create();
+    for (let i = 0; i < vAr.length; i += 3) {
+      temp[0] = vAr[i];
+      temp[1] = vAr[i + 1];
+      temp[2] = vAr[i + 2];
+      vec3.transformMat4(temp, temp, mat);
+      vAr[i] = temp[0];
+      vAr[i + 1] = temp[1];
+      vAr[i + 2] = temp[2];
+    }
+
     // 2. Create Object Structure similar to Primitives return
     const meshData = {
       vertices: vAr,
@@ -798,50 +792,167 @@ class SculptVoxel extends SculptBase {
     staticMesh.init();
     staticMesh.initRender();
 
-    // THEN Set Shader/Colors (Safe to update buffers now)
+    // 3. Configure Mesh for Standard Sculpting
+    // We must disable 'flatShading' optimization so normals are computed for brushes/PBR.
+    staticMesh.setFlatShading(false);
+    staticMesh.setUseDrawArrays(false); // Ensure indexed
+    staticMesh.setMode(this._main._gl.TRIANGLES);
+
+    staticMesh.init();
+
+    // THEN Set Shader/Colors
     staticMesh.setShaderType(Enums.Shader.MATCAP);
     staticMesh.setMatcap(0); // Pearl/Clay
     staticMesh.setFlatColor([0.6, 0.6, 0.6]);
 
-    // Set Sane PBR Defaults (Roughness 0.18, Metallic 0.08, Mask 0.0)
-    // MeshStatic.initCards already calls initColorsAndMaterials which sets defaults?
-    // Let's force it just in case logic varies.
-    // MeshStatic default constructor initializes mAr to defaults.
-    // But we reuse init(). 
-    // Let's verify: Mesh.js initColorsAndMaterials() loops and sets.
-    // So staticMesh SHOULD have valid PBR defaults.
-    // However, if we want to be safe:
-    // staticMesh.setMaterials(null); // Triggers re-init if null? NO.
-    // Let's rely on init() logic but maybe standard mesh materials are fine.
-    // Issue might be Env Map loading in PBR shader.
+    // Force PBR Material Defaults (in case user switches shader)
+    const materials = staticMesh.getMaterials();
+    for (let k = 0; k < materials.length; k += 3) {
+      materials[k] = 0.18;      // Roughness
+      materials[k + 1] = 0.08;  // Metallic
+      materials[k + 2] = 0.0;   // Masking
+    }
 
     staticMesh.updateGeometry(); // Force sync of all buffers
-    staticMesh.updateBuffers();
+
+    // CRITICAL: Compute Normals for Smooth Shading
+    // SurfaceNets provides vertices/faces but no normals. 
+    // MeshStatic defaults to all-zero normals, which causes invisibility with PBR/Matcap.
+    this._computeNormals(staticMesh, vAr, fAr);
+
+    // Standard White Colors
+    const cAr = new Float32Array(vAr.length);
+    cAr.fill(1.0);
+    staticMesh.setColors(cAr);
+
+    // CRITICAL FIX: Repair Normals for Degenerate Geometry
+    this._fixNormals(staticMesh);
+    if (window.screenLog) window.screenLog(`Bake: V=${vAr.length / 3} F=${fAr.length / 4}`, "cyan");
+
+    staticMesh.setFlatShading(false); // Smooth Shading
+    staticMesh.setShowWireframe(false); // Default Wireframe OFF
+    staticMesh.updateBuffers(); // Upload to GPU
 
     // Copy Transform (Min + Scale)
-    mat4.copy(staticMesh.getMatrix(), this._voxelMesh.getMatrix());
+    // DISABLED: Vertices are already transformed (frozen) to World Space.
+    // mat4.copy(staticMesh.getMatrix(), this._voxelMesh.getMatrix());
 
     // 4. Wrap in Multimesh (Standard Sculptable)
-    // Multimesh usually expects Mesh to be centered/normalized?
-    // Let's rely on standard constructor.
     const multiMesh = new Multimesh(staticMesh);
 
     // CRITICAL: Ensure Multimesh buffers are synced
+    // CRITICAL: Ensure Multimesh buffers are synced
     multiMesh.updateResolution();
+    if (window.screenLog) window.screenLog(`MultiMesh: Tris=${multiMesh.getNbTriangles()}`, "cyan");
 
     // 5. Add to Scene
     main.addNewMesh(multiMesh);
 
     // 6. Reset Voxel State (Clear Grid)
+    // 6. Reset Voxel State (Clear Grid)
     this._voxelState.clear();
-    // Hide default hidden meshes might be re-enabled if we switch tools?
-    // No, we should unhide others if we switch tools?
-    // But we just baked. The user likely wants to see the result.
-    // The "Other" meshes (Default Sphere) should remain hidden if they were hidden.
 
-    this.updateMesh(); // Will show empty or initial state
+    // CRITICAL: REMOVE the Voxel Mesh to prevent occlusion
+    this._voxelMesh.setVisible(false); // NUCLEAR OPTION: Hide it first!
+    main.removeMeshes([this._voxelMesh]);
 
-    if (window.screenLog) window.screenLog("Voxel: Bake Complete!", "green");
+    // Also remove Debug Cube if present
+    if (this._debugCube) {
+      this._debugCube.setVisible(false);
+      main.removeMeshes([this._debugCube]);
+    }
+
+    if (window.screenLog) window.screenLog("Voxel: Bake Complete! Switched to Brush.", "green");
+
+    // 7. Auto-Switch to Brush (Standard Workflow)
+    main.getSculptManager().setToolIndex(Enums.Tools.BRUSH);
+
+    // 8. Select the New Mesh
+    main.setMesh(multiMesh);
+  }
+
+  _computeNormals(mesh, vAr, fAr) {
+    const nAr = new Float32Array(vAr.length);
+    const nbFaces = fAr.length / 4;
+    const ab = vec3.create();
+    const ac = vec3.create();
+    const normal = vec3.create();
+    const v1 = vec3.create();
+    const v2 = vec3.create();
+    const v3 = vec3.create();
+
+    for (let i = 0; i < nbFaces; ++i) {
+      const id = i * 4;
+      const i1 = fAr[id];
+      const i2 = fAr[id + 1];
+      const i3 = fAr[id + 2];
+      const i4 = fAr[id + 3];
+
+      // Triangle 1 (v1-v2-v3)
+      v1[0] = vAr[i1 * 3]; v1[1] = vAr[i1 * 3 + 1]; v1[2] = vAr[i1 * 3 + 2];
+      v2[0] = vAr[i2 * 3]; v2[1] = vAr[i2 * 3 + 1]; v2[2] = vAr[i2 * 3 + 2];
+      v3[0] = vAr[i3 * 3]; v3[1] = vAr[i3 * 3 + 1]; v3[2] = vAr[i3 * 3 + 2];
+
+      vec3.sub(ab, v2, v1);
+      vec3.sub(ac, v3, v1);
+      vec3.cross(normal, ab, ac); // weighted by area
+
+      // Accumulate
+      nAr[i1 * 3] += normal[0]; nAr[i1 * 3 + 1] += normal[1]; nAr[i1 * 3 + 2] += normal[2];
+      nAr[i2 * 3] += normal[0]; nAr[i2 * 3 + 1] += normal[1]; nAr[i2 * 3 + 2] += normal[2];
+      nAr[i3 * 3] += normal[0]; nAr[i3 * 3 + 1] += normal[1]; nAr[i3 * 3 + 2] += normal[2];
+
+      // Triangle 2 (v1-v3-v4) - SurfaceNets produces quads
+      if (i4 !== Utils.TRI_INDEX) {
+        const v4 = vec3.create();
+        v4[0] = vAr[i4 * 3]; v4[1] = vAr[i4 * 3 + 1]; v4[2] = vAr[i4 * 3 + 2];
+
+        vec3.sub(ab, v3, v1);
+        vec3.sub(ac, v4, v1);
+        vec3.cross(normal, ab, ac);
+
+        nAr[i1 * 3] += normal[0]; nAr[i1 * 3 + 1] += normal[1]; nAr[i1 * 3 + 2] += normal[2];
+        nAr[i3 * 3] += normal[0]; nAr[i3 * 3 + 1] += normal[1]; nAr[i3 * 3 + 2] += normal[2];
+        nAr[i4 * 3] += normal[0]; nAr[i4 * 3 + 1] += normal[1]; nAr[i4 * 3 + 2] += normal[2];
+      }
+    }
+
+    // Normalize
+    Utils.normalizeArrayVec3(nAr);
+    mesh.setNormals(nAr);
+  }
+
+  _fixNormals(mesh) {
+    // Helper to fix NaNs and Zero-Length normals
+    const normals = mesh.getNormals();
+    if (!normals) return;
+
+    let nbNaNs = 0;
+    let nbZeros = 0;
+    for (let i = 0; i < normals.length; i += 3) {
+      const x = normals[i];
+      const y = normals[i + 1];
+      const z = normals[i + 2];
+      const len2 = x * x + y * y + z * z;
+      if (isNaN(x) || isNaN(y) || isNaN(z)) {
+        // Replace NaN with Up Vector
+        normals[i] = 0.0;
+        normals[i + 1] = 1.0;
+        normals[i + 2] = 0.0;
+        nbNaNs++;
+      } else if (len2 < 1e-6) {
+        // Replace Zero Length with Up Vector
+        normals[i] = 0.0;
+        normals[i + 1] = 1.0;
+        normals[i + 2] = 0.0;
+        nbZeros++;
+      }
+    }
+    if (nbNaNs > 0 || nbZeros > 0) {
+      if (window.screenLog) window.screenLog(`Fixed Normals: NaNs=${nbNaNs} Zeros=${nbZeros}`, "orange");
+      mesh.setNormals(normals); // Re-assign if needed (Reference sharing usually works)
+      mesh.updateNormalBuffer();
+    }
   }
 
   hideOtherMeshes() {
