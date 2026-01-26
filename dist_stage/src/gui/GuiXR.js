@@ -53,6 +53,9 @@ class GuiXR {
         { type: 'button', id: Enums.Tools.MASKING, label: 'Mask', x: 240, y: 220, w: 100, h: 40 },
         { type: 'button', id: Enums.Tools.LOCALSCALE, label: 'L.Scale', x: 350, y: 220, w: 90, h: 40 },
 
+        // Voxel Actions
+        { type: 'button', id: 'bake', label: 'BAKE TO MESH', x: 240, y: 270, w: 200, h: 40 },
+
         // Dynamic Topology Toggle
         { type: 'toggle', id: 'dynamic', label: 'Dynamic Topology', x: 20, y: 440, w: 210, h: 40 }
       ],
@@ -242,7 +245,19 @@ class GuiXR {
     // TOOLS TAB
     if (this._activeTab === 'TOOLS') {
       if (w.type === 'button') {
-        main.getSculptManager().setToolIndex(w.id);
+        if (w.id === 'bake') {
+          // Trigger Voxel Bake
+          const tool = main.getSculptManager().getTool(Enums.Tools.VOXEL);
+          if (tool && tool.bakeToMesh) {
+            tool.bakeToMesh();
+            // Switch to Brush? Optional.
+            main.getSculptManager().setToolIndex(Enums.Tools.BRUSH);
+          } else {
+            console.warn("Bake failed: Voxel tool not ready.");
+          }
+        } else {
+          main.getSculptManager().setToolIndex(w.id);
+        }
       }
       if (w.id === 'dynamic') {
         // Reuse existing GuiTopology logic

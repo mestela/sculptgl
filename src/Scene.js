@@ -140,7 +140,7 @@ class Scene {
 
     var modelURL = getOptionsURL().modelurl;
     if (modelURL) this.addModelURL(modelURL);
-    // else this.addSphere(); // [USER REQUEST] No default sphere to test Voxel Drawing freely
+    else this.addSphere(); // [USER REQUEST] Default sphere re-enabled
 
     // [DEBUG] Visualize Sphere Lift Target
     // this.updateDebugPivot([0, 1.3, -0.5], true);

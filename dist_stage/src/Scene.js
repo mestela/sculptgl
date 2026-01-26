@@ -140,7 +140,7 @@ class Scene {
 
     var modelURL = getOptionsURL().modelurl;
     if (modelURL) this.addModelURL(modelURL);
-    // else this.addSphere(); // [USER REQUEST] No default sphere to test Voxel Drawing freely
+    else this.addSphere(); // [USER REQUEST] Default sphere re-enabled
 
     // [DEBUG] Visualize Sphere Lift Target
     // this.updateDebugPivot([0, 1.3, -0.5], true);
@@ -1707,11 +1707,13 @@ class Scene {
           }
         }
 
-        if (isNegative && window.screenLog && this._logThrottle % 60 === 0) window.screenLog("VR: Negative Modifier!", "red");
+        if (isNegative && window.screenLog && this._logThrottle % 60 === 0) {
+          // window.screenLog("VR: Negative Modifier!", "red");
+        }
 
         // DEBUG: Trace Input
         if (window.screenLog && (this._logThrottle % 60 === 0)) {
-          window.screenLog(`VR Input: Src=${activeSource ? activeSource.handedness : 'null'} Trig=${isTriggerPressed} Neg=${isNegative}`, "cyan");
+          // window.screenLog(`VR Input: Src=${activeSource ? activeSource.handedness : 'null'} Trig=${isTriggerPressed} Neg=${isNegative}`, "cyan");
         }
 
         this._sculptManager.updateXR(this._picking, isTriggerPressed, enginePos, dir, { isNegative: isNegative });

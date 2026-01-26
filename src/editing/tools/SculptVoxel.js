@@ -1,6 +1,7 @@
 import SculptBase from 'editing/tools/SculptBase';
 import VoxelState from 'editing/VoxelState';
 import MeshStatic from 'mesh/meshStatic/MeshStatic';
+import Multimesh from 'mesh/multiresolution/Multimesh';
 import { vec3, mat4 } from 'gl-matrix';
 import Utils from 'misc/Utils';
 import Primitives from 'drawables/Primitives';
@@ -66,6 +67,7 @@ class SculptVoxel extends SculptBase {
       console.log("Try: window.voxelTool.flipWinding()");
       console.log("Try: window.voxelTool.logVoxelInfo()");
       console.log("Try: window.voxelTool.logInfo()");
+      console.log("Try: window.voxelTool.bakeToMesh()");
     };
 
     // Ensure we have a default radius for distance check
@@ -622,8 +624,13 @@ class SculptVoxel extends SculptBase {
     var res = this._voxelState.computeMesh();
     // res has { vertices, faces, colors, materials } (Float32Arrays)
 
+    var res = this._voxelState.computeMesh();
+    // res has { vertices, faces, colors, materials } (Float32Arrays)
+
     if (res.vertices.length === 0) {
-      if (window.screenLog) window.screenLog("Voxel: Empty Mesh Generated", "red");
+      if (this._voxelMesh) {
+        this._voxelMesh.setVisible(false);
+      }
       return;
     }
 
@@ -645,8 +652,8 @@ class SculptVoxel extends SculptBase {
       var containerMat = this._gridMatrix;
 
       if (window.screenLog) {
-        window.screenLog(`VoxelState: step=${step} min=${this._voxelState.min[0]},${this._voxelState.min[1]},${this._voxelState.min[2]}`, "orange");
-        window.screenLog(`GridMat: ${containerMat[12].toFixed(2)},${containerMat[13].toFixed(2)},${containerMat[14].toFixed(2)}`, "orange");
+        // window.screenLog(`VoxelState: step=${step} min=${this._voxelState.min[0]},${this._voxelState.min[1]},${this._voxelState.min[2]}`, "orange");
+        // window.screenLog(`GridMat: ${containerMat[12].toFixed(2)},${containerMat[13].toFixed(2)},${containerMat[14].toFixed(2)}`, "orange");
       }
 
       // M = Container * Translation(Min) * Scale(Step)
@@ -655,11 +662,14 @@ class SculptVoxel extends SculptBase {
       mat4.scale(worldMat, worldMat, [step, step, step]);
 
       if (window.screenLog) {
-        window.screenLog(`FinalMat: Pos=${worldMat[12].toFixed(2)},${worldMat[13].toFixed(2)},${worldMat[14].toFixed(2)} Scale=${worldMat[0].toFixed(2)}`, "lime");
+        // window.screenLog(`FinalMat: Pos=${worldMat[12].toFixed(2)},${worldMat[13].toFixed(2)},${worldMat[14].toFixed(2)} Scale=${worldMat[0].toFixed(2)}`, "lime");
       }
 
       if (window.screenLog) window.screenLog("Voxel: Mesh Created", "green");
     }
+
+    // Ensure it is visible (in case it was hidden)
+    this._voxelMesh.setVisible(true);
 
     // Update Buffers
     this._voxelMesh.setVertices(res.vertices);
@@ -774,6 +784,69 @@ class SculptVoxel extends SculptBase {
       // window.screenLog(`Voxel: Validating. Tris:${nbTris} DA:${useDA}`, "grey");
       // console.log(`Voxel: Tris:${nbTris} DA:${useDA} Faces:${res.faces.length / 4}`);
     }
+  }
+
+  // Bake Voxel Mesh to Standard Multimesh
+  bakeToMesh() {
+    if (!this._voxelMesh) {
+      if (window.screenLog) window.screenLog("Voxel: No mesh to bake!", "orange");
+      return;
+    }
+
+    if (window.screenLog) window.screenLog("Voxel: Baking to Mesh...", "lime");
+
+    const main = this._main;
+    const gl = main._gl;
+
+    // 1. Extract Geometry
+    const vAr = new Float32Array(this._voxelMesh.getVertices()); // Clone
+    const fAr = new Uint32Array(this._voxelMesh.getFaces()); // Clone
+
+    // 2. Create Object Structure similar to Primitives return
+    const meshData = {
+      vertices: vAr,
+      faces: fAr
+    };
+
+    // 3. Create Standard Mesh (Multimesh)
+    // We use Import-like logic or simply new Multimesh(new MeshStatic(gl))
+    // But Multimesh expects a Mesh object.
+    const staticMesh = new MeshStatic(gl);
+    staticMesh.setVertices(vAr);
+    staticMesh.setFaces(fAr);
+
+    // Init Topology & Arrays FIRST
+    staticMesh.init();
+    staticMesh.initRender();
+
+    // THEN Set Shader/Colors (Safe to update buffers now)
+    staticMesh.setShaderType(Enums.Shader.MATCAP);
+    staticMesh.setMatcap(0); // Pearl/Clay
+    staticMesh.setFlatColor([0.6, 0.6, 0.6]);
+
+    // Copy Transform (Min + Scale)
+    mat4.copy(staticMesh.getMatrix(), this._voxelMesh.getMatrix());
+
+    // 4. Wrap in Multimesh (Standard Sculptable)
+    // Multimesh usually expects Mesh to be centered/normalized?
+    // Let's rely on standard constructor.
+    const multiMesh = new Multimesh(staticMesh);
+
+    // CRITICAL: Ensure Multimesh buffers are synced
+    multiMesh.updateResolution();
+
+    // 5. Add to Scene
+    main.addNewMesh(multiMesh);
+
+    // 6. Reset Voxel State (Clear Grid)
+    this._voxelState.clear();
+    this.updateMesh(); // Will show empty or initial state
+
+    if (window.screenLog) window.screenLog("Voxel: Bake Complete!", "green");
+  }
+
+  bake() {
+    this.bakeToMesh();
   }
 
   // Debug Helper: Check vertices for NaN
