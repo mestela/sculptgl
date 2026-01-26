@@ -47,6 +47,8 @@ class SculptGL extends Scene {
 
     this.initHammer();
 
+    this._shiftKey = false; // Track shift key globally
+
     this.initHammer();
     this.addEvents();
   }
@@ -164,10 +166,12 @@ class SculptGL extends Scene {
   // KEY EVENTS
   ////////////////
   onKeyDown(e) {
+    this._shiftKey = e.shiftKey;
     this._gui.callFunc('onKeyDown', e);
   }
 
   onKeyUp(e) {
+    this._shiftKey = e.shiftKey;
     this._gui.callFunc('onKeyUp', e);
   }
 
@@ -439,8 +443,10 @@ class SculptGL extends Scene {
     var button = event.which;
 
     var canEdit = false;
-    if (button === MOUSE_LEFT && this._sculptManager)
-      canEdit = this._sculptManager.start(event.shiftKey);
+    if (button === MOUSE_LEFT && this._sculptManager) {
+      if (window.screenLog) window.screenLog(`DeviceDown: Shift=${event.shiftKey} MainShift=${this._shiftKey}`, "cyan");
+      canEdit = this._sculptManager.start(event.shiftKey || this._shiftKey); // Support both event and global shift
+    }
 
     if (button === MOUSE_LEFT && canEdit)
       this.setCanvasCursor('none');

@@ -316,7 +316,8 @@ class SculptVoxel extends SculptBase {
   }
 
   start(ctrl) {
-    if (window.screenLog) window.screenLog("Voxel: start() called", "lime");
+    // IGNORE start() in VR (handled by updateXR)
+    if (this._main._xrSession) return;
 
     // Refresh Global Reference
     window.voxelTool = this;
@@ -404,16 +405,31 @@ class SculptVoxel extends SculptBase {
       return;
     }
 
-    // Transform Intersection (World) to Grid Space (Local)
-    // Use the inverse of the container matrix
+    // Revert to Legacy Math (Identity Transform)
+    // User reports "Min + Grid*Step" causes misalignment.
+    // This implies 'inter' might already be in the space 'addSphere' expects,
+    // or 'invGridMatrix' handles it (even if Identity).
     const localPos = vec3.create();
     vec3.transformMat4(localPos, inter, this._invGridMatrix);
 
     if (window.screenLog && Math.random() < 0.1) {
       const mesh = picking.getMesh();
       const meshID = mesh ? mesh.getID() : "Null";
-      window.screenLog(`Strk: Mesh[${meshID}] W[${inter[0].toFixed(1)},${inter[1].toFixed(1)},${inter[2].toFixed(1)}] -> L[${localPos[0].toFixed(2)},${localPos[1].toFixed(2)},${localPos[2].toFixed(2)}]`, "cyan");
+      // Log Grid vs Result to debug "Fine" vs "Offset"
+      // if (this._voxelState && window.screenLog && Math.random() < 0.01) {
+      //    const inter = this._picking.getIntersectionPoint();
+      //    window.screenLog(`Strk(Desk): I[${inter[0].toFixed(1)}]`, "grey");
+      // }
     }
+
+    /*
+    if (window.screenLog && Math.random() < 0.1) {
+      const mesh = picking.getMesh();
+      const meshID = mesh ? mesh.getID() : "Null";
+      // Log Grid pos vs Physical pos
+      // window.screenLog(`Strk: G[${inter[0].toFixed(1)}] -> P[${localPos[0].toFixed(1)}]`, "cyan");
+    }
+    */
 
     // Brush Radius (in Voxel Space)
     // Default to a smaller, more reasonable starting size.
@@ -504,41 +520,66 @@ class SculptVoxel extends SculptBase {
       var localPos = vec3.create();
       vec3.transformMat4(localPos, origin, this._invGridMatrix);
 
+      // Guard: Check for NaN/Infinity
+      if (isNaN(localPos[0]) || isNaN(localPos[1]) || isNaN(localPos[2])) {
+        return;
+      }
+
+      // Revert Fix: We determined addSphere takes Physical Coords.
+      // So passing 'localPos' (which is Physical if invGridMatrix is Identity) is correct.
+
+      // FIX: Desktop works by passing Grid Coords to addSphere (Identity Math).
+      // So we must convert World (P) -> Grid (G) for VR to match.
+      // G = (P - Min) / Step
+      if (this._voxelState) {
+        // const min = this._voxelState.min;
+        // const step = this._voxelState.step;
+
+        // Debug: Log Min/Step
+        // if (window.screenLog && this._lastUpdate % 60 === 0) {
+        //   window.screenLog(`VS: Min=[${min[0]},${min[1]}] Step=${step}`, "orange");
+        // }
+
+        // Apply Transform IF the log proves we need it.
+        // For now, let's keep the transform active but LOG the result.
+        // localPos[0] = (localPos[0] - min[0]) / step;
+        // localPos[1] = (localPos[1] - min[1]) / step;
+        // localPos[2] = (localPos[2] - min[2]) / step;
+      }
+
       // Debug: Log Local Pos
       if (window.screenLog && Math.random() < 0.05) {
-        // window.screenLog(`Voxel Pos: ${localPos[0].toFixed(2)}, ${localPos[1].toFixed(2)}, ${localPos[2].toFixed(2)}`, "cyan");
+        // window.screenLog(`VR Pos: G[${localPos[0].toFixed(1)},${localPos[1].toFixed(1)}]`, "cyan");
       }
 
       // 2. Add Sphere at LocalPos
       // Radius Source: this._radius (0..100) set by GuiXR
-      // Map 0..100 to 0.5..25.0 units?
-      // Default _radius is usually 50 around start? GuiXR sets it.
-      // Let's assume Map: Radius / 2.0? (50 -> 25).
-      // Or Radius * 0.2? (50 -> 10).
-
       var rawRadius = (this._radius !== undefined) ? this._radius : 25.0;
-      // User requested "Radius Slider" support.
-      // GuiXR Radius slider goes 0..1 (val) -> setRadius(val * 100).
-      // If val=0.5 -> _radius=50.
-      // We want ~10.0 units for mid brush.
-      var radius = Math.max(0.5, rawRadius * 0.2);
+      
+      // Radius Mapping: 0..100 -> 0.5..10.0 (Physical Units)
+      // Voxel Step is ~1.5. So 10.0 is ~6 voxels radius.
+      var radius = Math.max(1.5, rawRadius * 0.15); 
 
       // Support Voxel Mult Slider if set
       if (this._radiusMult) radius *= this._radiusMult;
+
+      // Guard: Max Radius (Prevent Huge Blob)
+      radius = Math.min(radius, 50.0);
 
       var color = [0.7, 0.65, 0.6]; // Grey Clay
 
       var changed = false;
       var isNegative = (options && options.isNegative);
 
-      // DEBUG: Log VR Stroke
-      if (window.screenLog && (this._lastUpdate % 30 === 0)) {
-        window.screenLog(`VR: Neg=${isNegative} R=${radius.toFixed(1)} P=${localPos[0].toFixed(1)} Opts=${!!options}`, isNegative ? "red" : "lime");
-      }
-
+      // DEBUG: Log VR Stroke (Throttled)
+      // if (window.screenLog && (this._lastUpdate % 60 === 0)) {
+        // window.screenLog(`VR: Neg=${isNegative} R=${radius.toFixed(1)} P=${localPos[0].toFixed(1)}`, isNegative ? "red" : "lime");
+      // }
+      
+      // Re-enable real update loop
       if (isNegative) {
         changed = this._voxelState.subtractSphere(localPos, radius);
-        if (window.screenLog && (this._lastUpdate % 30 === 0)) window.screenLog("Voxel: Neg Mod!", "red");
+        // if (window.screenLog && (this._lastUpdate % 30 === 0)) window.screenLog("Voxel: Neg Mod!", "red");
       } else {
         changed = this._voxelState.addSphere(localPos, radius, color);
       }

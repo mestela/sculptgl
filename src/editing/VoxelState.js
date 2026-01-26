@@ -128,6 +128,80 @@ class VoxelState {
     return changed;
   }
 
+  // Boolean Difference: max(existing, -new)
+  subtractSphere(center, radius) {
+    var res = this._resolution;
+    var step = this._step;
+    var min = this._min;
+
+    // Center in Grid Coords (0 to res)
+    var cx = (center[0] - min[0]) / step;
+    var cy = (center[1] - min[1]) / step;
+    var cz = (center[2] - min[2]) / step;
+
+    // Grid Bounds
+    var rGrid = Math.ceil(radius / step) + 1;
+    var ixMin = Math.max(0, Math.floor(cx - rGrid));
+    var ixMax = Math.min(res, Math.ceil(cx + rGrid));
+    var iyMin = Math.max(0, Math.floor(cy - rGrid));
+    var iyMax = Math.min(res, Math.ceil(cy + rGrid));
+    var izMin = Math.max(0, Math.floor(cz - rGrid));
+    var izMax = Math.min(res, Math.ceil(cz + rGrid));
+
+    var df = this._distanceField;
+
+    var rx = res;
+    var rxy = res * res;
+
+    var changed = false;
+
+    for (var k = izMin; k < izMax; ++k) {
+      for (var j = iyMin; j < iyMax; ++j) {
+        for (var i = ixMin; i < ixMax; ++i) {
+
+          // Voxel Position in World
+          var valX = min[0] + i * step;
+          var valY = min[1] + j * step;
+          var valZ = min[2] + k * step;
+
+          // Distance to Sphere Center
+          var dx = valX - center[0];
+          var dy = valY - center[1];
+          var dz = valZ - center[2];
+          var dist = Math.sqrt(dx * dx + dy * dy + dz * dz) - radius;
+
+          var index = i + j * rx + k * rxy;
+          var oldDist = df[index];
+
+          // Difference: max(old, -new)
+          // We want to carve OUT the sphere.
+          // Sphere dist is negative INSIDE.
+          // -dist is positive INSIDE.
+          // max(old, pos) -> pushes surface away?
+          // Wait.
+          // SDF: < 0 is inside. > 0 is outside.
+          // We want to make the inside of the sphere (>0 distance) become OUTSIDE.
+          // So we want the resulting distance to be > 0 inside the sphere.
+          // If we use max(old, -dist):
+          // Inside sphere: dist is -5. -dist is +5.
+          // If old was -10 (deep inside object), max(-10, 5) = 5.
+          // Result is +5 (Outside). Correct.
+
+          // Optimization: Only update if we are "close" to affecting it?
+          // If -dist < oldDist, we don't change anything?
+          // Yes. max(a, b) only changes a if b > a.
+
+          if (-dist > oldDist) {
+            df[index] = -dist;
+            changed = true;
+          }
+        }
+      }
+    }
+
+    return changed;
+  }
+
   computeMesh() {
     // Use SurfaceNets (Dual Contouring style)
     const res = SurfaceNets.computeSurface(this._voxels);

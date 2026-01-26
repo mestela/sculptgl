@@ -110,8 +110,8 @@ class Scene {
   }
 
   start() {
-    if (window.screenLog) window.screenLog("Scene: Loaded v0.5.180", "lime");
-    console.log("Scene: Loaded v0.5.180");
+    if (window.screenLog) window.screenLog("Scene: Loaded v0.5.271", "lime");
+    console.log("Scene: Loaded v0.5.271");
     this.initWebGL();
     if (!this._gl)
       return;
@@ -1365,7 +1365,7 @@ class Scene {
     // XRInputSourceArray is not a real array, so .find() fails.
     let activeSource = null;
     for (const s of sources) {
-      if (s.handedness === this._activeHandedness) {
+      if (s.handedness === 'right') { // Forced Right Hand for Stability
         activeSource = s;
         break;
       }
@@ -1619,10 +1619,8 @@ class Scene {
     const isTriggerPressed = buttons[0].pressed;
 
     // DEBUG: Cursor Drift
-    // enginePos is Scaled Model Space.
-    // RenderVR Pass 2 uses Scaled Matrix.
-    // So enginePos should map 1:1 to Physical Hand visually IF rendered in Pass 2.
-    if (this._debugCursor) {
+    // HIDDEN to prevent Red Sphere Artifacts
+    if (this._debugCursor && false) {
       this.updateDebugCursor(enginePos, true);
 
       // Fix Red Cube Blobbing: Inverse Scale to maintain physical size
@@ -1694,7 +1692,29 @@ class Scene {
           quat.invert(qInv2, quat.fromValues(r2.x, r2.y, r2.z, r2.w));
           vec3.transformQuat(dir, dir, qInv2);
         }
-        this._sculptManager.updateXR(this._picking, isTriggerPressed, enginePos, dir);
+
+        // Check for LEFT TRIGGER (Modifier)
+        let isNegative = false;
+        // Find left input source
+        // FIX: 'sources' was undefined. Retrieve from current session.
+        const session = frame.session;
+        if (session && session.inputSources) {
+          for (let src of session.inputSources) {
+            if (src.handedness === 'left' && src.gamepad && src.gamepad.buttons[0] && src.gamepad.buttons[0].pressed) {
+              isNegative = true;
+              break;
+            }
+          }
+        }
+
+        if (isNegative && window.screenLog && this._logThrottle % 60 === 0) window.screenLog("VR: Negative Modifier!", "red");
+
+        // DEBUG: Trace Input
+        if (window.screenLog && (this._logThrottle % 60 === 0)) {
+          window.screenLog(`VR Input: Src=${activeSource ? activeSource.handedness : 'null'} Trig=${isTriggerPressed} Neg=${isNegative}`, "cyan");
+        }
+
+        this._sculptManager.updateXR(this._picking, isTriggerPressed, enginePos, dir, { isNegative: isNegative });
       } else {
         if (window.screenLog) window.screenLog("Scene: No updateXR found!", "red");
         this._sculptManager.update();

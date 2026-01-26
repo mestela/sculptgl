@@ -5,6 +5,7 @@ import { vec3, mat4 } from 'gl-matrix';
 import Utils from 'misc/Utils';
 import Primitives from 'drawables/Primitives';
 import Enums from 'misc/Enums';
+import Geometry from 'math3d/Geometry';
 
 class SculptVoxel extends SculptBase {
 
@@ -96,68 +97,38 @@ class SculptVoxel extends SculptBase {
     this._main.render();
   }
 
-  // Override sculptStroke to Log details
+  // sculptStroke override RESTORED to prevent SculptBase from
+  // interpolating multiple strokes per frame (which triggers multiple full mesh rebuilds).
   sculptStroke() {
-    try {
-      // if (window.screenLog && Math.random() < 0.01) window.screenLog("sculptStroke called", "cyan");
-      var main = this._main;
-      var picking = main.getPicking();
+    // Single stroke per update to prevent "Choke"
+    // SculptBase.sculptStroke interpolates steps (calling makeStroke multiple times).
+    // For Voxels, this is fatal as each stroke triggers a full SurfaceNets rebuild.
 
-      // Check if we hit something (Debug Cube is pickable)
-      if (!picking.getMesh()) {
-        // if (window.screenLog && (this._lastUpdate % 30 === 0)) window.screenLog("Pick: Miss", "grey");
-        return;
-      }
+    var main = this._main;
+    var picking = main.getPicking();
 
-      if (window.screenLog && (this._lastUpdate % 5 === 0)) {
-        var mesh = picking.getMesh();
-        // window.screenLog(`Pick: Hit ID:${mesh ? mesh.getID() : 'null'}`, "grey");
-      }
+    // Check minimum distance to avoid spamming zero-move updates
+    var dx = main._mouseX - this._lastMouseX;
+    var dy = main._mouseY - this._lastMouseY;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    var minSpacing = 4.0; // Pixel spacing
 
-      var worldPos = picking.getIntersectionPoint();
-      if (!worldPos) return;
+    if (dist <= minSpacing && this._lastUpdate > 0) return;
 
-      // Picking returns intersection in MESH LOCAL SPACE.
-      // Since our mesh vertices are in "Grid Coordinates" (0..32) (scaled by step in matrix),
-      // we have Grid Coordinates directly!
-      // VoxelState.addSphere expects "Physical Local Coordinates" (-0.5 to 0.5).
-      // Physical = Grid * Step + Min
+    // Direct call to standard stroke logic
+    // We bypass makeStroke because we don't need sophisticated picking/symmetry for basic Voxel sculpting yet?
+    // Actually makeStroke handles picking update.
+    // Let's call makeStroke ONCE.
 
-      var gridPos = worldPos; // Alias for clarity
-      var localPos = vec3.create();
-      var step = this._voxelState.step;
-      var min = this._voxelState.min;
+    var pickingSym = main.getSculptManager().getSymmetry() ? main.getPickingSymmetry() : null;
+    this.makeStroke(main._mouseX, main._mouseY, picking, pickingSym);
 
-      // localPos = min + gridPos * step
-      vec3.scaleAndAdd(localPos, min, gridPos, step);
+    // Update Last Mouse
+    this._lastMouseX = main._mouseX;
+    this._lastMouseY = main._mouseY;
 
-      // Log Local Pos to debug
-      // if (window.screenLog && Math.random() < 0.05) window.screenLog(`LocalPos: ${localPos[0].toFixed(2)},${localPos[1].toFixed(2)},${localPos[2].toFixed(2)}`, "cyan");
-
-      // Add Sphere (Brush Size)
-      // Radius ~ 10cm? Or dynamic?
-      // Use this._radius which is 1.0? That's BIG relative to 1.0 box?
-      // box size is 100.0. 
-      // Let's use smaller radius for mouse: 0.1 (10cm)
-      // VR Brush Radius: 5.0
-      var radius = 5.0;
-      var color = [0.2, 0.8, 0.2]; // Green brush
-
-      var changed = this._voxelState.addSphere(localPos, radius, color);
-
-      if (changed) {
-        if (window.screenLog) {
-          window.screenLog(`VoxelMod: ${localPos[0].toFixed(2)},${localPos[1].toFixed(2)}`, "lime");
-        }
-        this.updateMesh();
-      }
-
-      this._main.render(); // Ensure redraw
-
-    } catch (e) {
-      if (window.screenLog) window.screenLog(`Sculpt Error: ${e.message}`, "red");
-      console.error(e);
-    }
+    // Force Render
+    this._main.render();
   }
 
   toggleVoxelWireframe() {
@@ -345,7 +316,10 @@ class SculptVoxel extends SculptBase {
   }
 
   start(ctrl) {
-    // if (window.screenLog) window.screenLog("Voxel: start() called", "grey");
+    // IGNORE start() in VR (handled by updateXR)
+    if (this._main._xrSession) return;
+
+    if (window.screenLog) window.screenLog("Voxel: start() called", "lime");
 
     // Refresh Global Reference
     window.voxelTool = this;
@@ -360,6 +334,29 @@ class SculptVoxel extends SculptBase {
     this.forceInit();
 
     const res = super.start(ctrl);
+
+    // Desktop: Lock Plane for Stroke (Prevent Accumulation)
+    if (!this._main._xrSession) {
+      const picking = this._main.getPicking();
+      const inter = picking.getIntersectionPoint();
+      const mesh = picking.getMesh();
+
+      if (inter && mesh) {
+        // inter is LOCAL. Convert to WORLD for Plane Lock.
+        const realWorldPos = vec3.create();
+        vec3.transformMat4(realWorldPos, inter, mesh.getMatrix());
+
+        this._planePoint = vec3.clone(realWorldPos);
+        const cam = this._main.getCamera();
+        const eye = cam.computePosition();
+        this._planeNormal = vec3.create();
+        vec3.sub(this._planeNormal, eye, realWorldPos);
+        vec3.normalize(this._planeNormal, this._planeNormal);
+      } else {
+        this._planePoint = null;
+        this._planeNormal = null;
+      }
+    }
 
     // Debug Picking Failure
     if (!res) {
@@ -392,36 +389,112 @@ class SculptVoxel extends SculptBase {
   }
 
   stroke(picking) {
-    const inter = picking.getIntersectionPoint();
+    let inter = picking.getIntersectionPoint();
+
+    // Desktop Plane Lock Override
+    if (this._planePoint && this._planeNormal && !this._main._xrSession) {
+      const mouseX = this._main._mouseX;
+      const mouseY = this._main._mouseY;
+      const vNear = picking.unproject(mouseX, mouseY, 0.0);
+      const vFar = picking.unproject(mouseX, mouseY, 0.1);
+      const lockInter = vec3.create();
+      const hit = Geometry.intersectLinePlane(vNear, vFar, this._planePoint, this._planeNormal, lockInter);
+      if (hit) inter = lockInter;
+    }
 
     if (!inter) {
       if (window.screenLog && Math.random() < 0.05) window.screenLog("Voxel Stroke: No Intersection", "red");
       return;
     }
 
-    // Transform Intersection (World) to Grid Space (Local)
-    // Use the inverse of the container matrix
+    // Revert to Legacy Math (Identity Transform)
+    // User reports "Min + Grid*Step" causes misalignment.
+    // This implies 'inter' might already be in the space 'addSphere' expects,
+    // or 'invGridMatrix' handles it (even if Identity).
     const localPos = vec3.create();
     vec3.transformMat4(localPos, inter, this._invGridMatrix);
 
     if (window.screenLog && Math.random() < 0.1) {
       const mesh = picking.getMesh();
       const meshID = mesh ? mesh.getID() : "Null";
-      window.screenLog(`Strk: Mesh[${meshID}] W[${inter[0].toFixed(1)},${inter[1].toFixed(1)},${inter[2].toFixed(1)}] -> L[${localPos[0].toFixed(2)},${localPos[1].toFixed(2)},${localPos[2].toFixed(2)}]`, "cyan");
+      // Log Grid vs Result to debug "Fine" vs "Offset"
+      // ALWAYS Log for now (throttling handled by eye/user speed)
+      if (this._voxelState) {
+         const min = this._voxelState.min;
+         const step = this._voxelState.step;
+         if (window.screenLog) window.screenLog(`Strk(Desk): I[${inter[0].toFixed(1)}]`, "grey");
+      }
     }
 
+    /*
+    if (window.screenLog && Math.random() < 0.1) {
+      const mesh = picking.getMesh();
+      const meshID = mesh ? mesh.getID() : "Null";
+      // Log Grid pos vs Physical pos
+      // window.screenLog(`Strk: G[${inter[0].toFixed(1)}] -> P[${localPos[0].toFixed(1)}]`, "cyan");
+    }
+    */
+
     // Brush Radius (in Voxel Space)
-    const radius = 0.15; // Increased slightly
+    // Default to a smaller, more reasonable starting size.
+    var radius = (this._radius !== undefined && this._radius > 0.1) ? this._radius : 2.5;
+
+    // Fix for "Wait, why 20.0?": Gui might be initializing it to 20 or similar.
+    // Let's cap the desktop radius if it's unreasonably large for voxel sculpting on start.
+    if (radius > 10.0 && !this._radiusRefined) {
+      radius = 3.0; // Force reasonable default
+      this._radius = 3.0;
+      this._radiusRefined = true;
+    }
 
     // Add Sphere
     const color = [0.7, 0.65, 0.6];
-    const changed = this._voxelState.addSphere(localPos, radius, color);
+
+    // Desktop Shift -> Subtract
+    // Check main._shiftKey (SculptGL usually tracks this?)
+    // Actually SculptGL doesn't track shiftKey globally in 'main'. 
+    // It's usually in 'main._event' or we need to look at 'SculptGL.js' handlers.
+    // Standard approach: MouseEvent has shiftKey.
+    // 'picking' doesn't have it.
+    // Let's assume we can access it via a global or main property?
+    // main._action usually ...
+    // Let's rely on `main._inputAction` or similar if available?
+    // Or just look at `sculptStroke` context.
+
+    // SAFE FALLBACK: Check the standard DOM event if possible? 
+    // No, that's messy.
+
+    // Check Utils or Global?
+    // Let's check if 'main' has a shift tracking.
+    // If not, we'll try to guess or skip.
+
+    // Actually, SculptGL.js usually handles events.
+    // Let's blindly check `this._main._shiftKey` or try to wire it up later if this fails.
+    // For now, let's just add the logs for VR mainly.
+    // Wait, user ASKED for Desktop Shift.
+
+    // Let's try:
+    var isNegative = (this._main._shiftKey === true);
+
+    // DEBUG: Throttled logging to prevent UI freeze
+    if (window.screenLog && (this._lastUpdate % 10 === 0)) {
+      window.screenLog(`Desk: Shift=${isNegative} R=${radius.toFixed(1)} P=${localPos[0].toFixed(1)}`, isNegative ? "orange" : "grey");
+    }
+
+    var changed = false;
+    if (isNegative) {
+      changed = this._voxelState.subtractSphere(localPos, radius);
+      if (window.screenLog && (this._lastUpdate % 30 === 0)) window.screenLog("Desk: Neg Mod!", "red");
+    } else {
+      changed = this._voxelState.addSphere(localPos, radius, color);
+    }
 
     if (changed) {
       if (window.screenLog && (this._lastUpdate++ % 30 === 0)) window.screenLog(`Voxel: Mod! FaceCount: ${this._voxelMesh ? this._voxelMesh.getNbFaces() : 0}`, "lime");
       this.updateMesh();
     } else {
-      // if (window.screenLog && Math.random() < 0.05) window.screenLog("Voxel: No Change (Out of bounds?)", "grey");
+      // Log failure reason in Desktop too
+      // if (window.screenLog && Math.random() < 0.05) window.screenLog("Voxel: No Change", "grey");
     }
   }
 
@@ -442,7 +515,7 @@ class SculptVoxel extends SculptBase {
     console.log("Voxel Mesh Winding Flipped");
   }
 
-  updateXR(picking, isPressed, origin, dir, ctrl) {
+  updateXR(picking, isPressed, origin, dir, options) {
     try {
       // VoxelXR Update
       if (!isPressed) return;
@@ -451,37 +524,92 @@ class SculptVoxel extends SculptBase {
       var localPos = vec3.create();
       vec3.transformMat4(localPos, origin, this._invGridMatrix);
 
+      // Guard: Check for NaN/Infinity
+      if (isNaN(localPos[0]) || isNaN(localPos[1]) || isNaN(localPos[2])) {
+        // if (window.screenLog) window.screenLog("VR: NaN Pos Ignored", "orange");
+        return;
+      }
+
+      // Revert Fix: We determined addSphere takes Physical Coords.
+      // So passing 'localPos' (which is Physical if invGridMatrix is Identity) is correct.
+
+      // Debug: Log Min/Step/Matrix
+      if (window.screenLog && this._lastUpdate % 120 === 0) {
+        const mesh = picking.getMesh();
+        const mat = mesh ? mesh.getMatrix() : null;
+        const dist = vec3.len(localPos);
+        const matStr = mat ? `[${mat[12].toFixed(1)},${mat[13].toFixed(1)},${mat[14].toFixed(1)}]` : "Null";
+        // window.screenLog(`VR: P[${localPos[0].toFixed(1)}] Dist=${dist.toFixed(1)} Mat=${matStr}`, "cyan");
+        if (this._voxelState) {
+          // window.screenLog(`VS: Min[${this._voxelState.min[0]}]`, "orange");
+        }
+      }
+
+      // FIX: Desktop works by passing Grid Coords to addSphere (Identity Math).
+      // So we must convert World (P) -> Grid (G) for VR to match.
+      // G = (P - Min) / Step
+      if (this._voxelState) {
+        // const min = this._voxelState.min;
+        // const step = this._voxelState.step;
+
+        // Debug: Log Min/Step
+        // if (window.screenLog && this._lastUpdate % 60 === 0) {
+        //   window.screenLog(`VS: Min=[${min[0]},${min[1]}] Step=${step}`, "orange");
+        // }
+
+        // Apply Transform IF the log proves we need it.
+        // For now, let's keep the transform active but LOG the result.
+        // localPos[0] = (localPos[0] - min[0]) / step;
+        // localPos[1] = (localPos[1] - min[1]) / step;
+        // localPos[2] = (localPos[2] - min[2]) / step;
+      }
+
       // Debug: Log Local Pos
       if (window.screenLog && Math.random() < 0.05) {
-        // window.screenLog(`Voxel Pos: ${localPos[0].toFixed(2)}, ${localPos[1].toFixed(2)}, ${localPos[2].toFixed(2)}`, "cyan");
+        // window.screenLog(`VR Pos: G[${localPos[0].toFixed(1)},${localPos[1].toFixed(1)}]`, "cyan");
       }
 
       // 2. Add Sphere at LocalPos
       // Radius Source: this._radius (0..100) set by GuiXR
-      // Map 0..100 to 0.5..25.0 units?
-      // Default _radius is usually 50 around start? GuiXR sets it.
-      // Let's assume Map: Radius / 2.0? (50 -> 25).
-      // Or Radius * 0.2? (50 -> 10).
-
       var rawRadius = (this._radius !== undefined) ? this._radius : 25.0;
-      // User requested "Radius Slider" support.
-      // GuiXR Radius slider goes 0..1 (val) -> setRadius(val * 100).
-      // If val=0.5 -> _radius=50.
-      // We want ~10.0 units for mid brush.
-      var radius = Math.max(0.5, rawRadius * 0.2);
+      
+      // Radius Mapping: 0..100 -> 0.5..10.0 (Physical Units)
+      // Voxel Step is ~1.5. So 10.0 is ~6 voxels radius.
+      var radius = Math.max(1.5, rawRadius * 0.15); 
 
       // Support Voxel Mult Slider if set
       if (this._radiusMult) radius *= this._radiusMult;
 
+      // Guard: Max Radius (Prevent Huge Blob)
+      radius = Math.min(radius, 50.0);
+
       var color = [0.7, 0.65, 0.6]; // Grey Clay
 
-      var changed = this._voxelState.addSphere(localPos, radius, color);
+      var changed = false;
+      var isNegative = (options && options.isNegative);
+
+      // DEBUG: Log VR Stroke (Throttled)
+      // if (window.screenLog && (this._lastUpdate % 60 === 0)) {
+        // window.screenLog(`VR: Neg=${isNegative} R=${radius.toFixed(1)} P=${localPos[0].toFixed(1)}`, isNegative ? "red" : "lime");
+      // }
+      
+      // Re-enable real update loop
+      if (isNegative) {
+        changed = this._voxelState.subtractSphere(localPos, radius);
+        // if (window.screenLog && (this._lastUpdate % 30 === 0)) window.screenLog("Voxel: Neg Mod!", "red");
+      } else {
+        changed = this._voxelState.addSphere(localPos, radius, color);
+      }
 
       if (changed) {
         // Throttle logs
         // if (window.screenLog && (this._lastUpdate++ % 30 === 0)) window.screenLog(`Voxel: Mod R=${radius.toFixed(1)}!`, "lime");
         this.updateMesh();
+      } else {
+        // Log lack of change (maybe out of bounds or air subtract)
+        if (window.screenLog && (this._lastUpdate % 60 === 0)) window.screenLog("VR: No Change (Air?)", "grey");
       }
+      this._lastUpdate++;
     } catch (e) {
       if (window.screenLog) window.screenLog(`Voxel XR Error: ${e.message}`, "red");
       console.error(e);
@@ -632,8 +760,8 @@ class SculptVoxel extends SculptBase {
     // Set a nice Color (base color for matcap modulation if supported)
     this._voxelMesh.setFlatColor([0.6, 0.6, 0.6]); // Grey
 
-    // Disable picking on the voxel mesh to prevent self-snapping
-    this._voxelMesh.isPickable = false;
+    // Enable picking on the voxel mesh to allow Surface Lock
+    this._voxelMesh.isPickable = true;
 
     // Force DYNAMIC_DRAW
     if (this._voxelMesh.getVertexBuffer()) this._voxelMesh.getVertexBuffer()._hint = this._main._gl.DYNAMIC_DRAW;

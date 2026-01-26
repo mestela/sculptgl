@@ -162,6 +162,9 @@ class Selection {
   }
 
   render(main) {
+    // ABORT if we are in VR (VR uses renderVR)
+    if (main.getXRMode && main.getXRMode()) return;
+
     // if there's an offset then it means we are editing the tool radius
     var pickedMesh = main.getPicking().getMesh() && !this._isEditMode;
     if (pickedMesh) this._updateMatricesMesh(main.getCamera(), main);
@@ -181,7 +184,7 @@ class Selection {
     this._updateMatricesMeshVR(camera, main, worldRadius);
 
     // Draw (No Transparency for now, just Red Ring)
-    vec3.set(this._color, 0.8, 0.0, 0.0);
+    vec3.set(this._color, 0.0, 0.0, 0.8); // BLUE for VR
     ShaderLib[Enums.Shader.SELECTION].getOrCreate(this._gl).draw(this, true, false); // Draw Circle, no Sym for now
   }
 
@@ -221,9 +224,9 @@ class Selection {
     mat4.scale(this._cacheCircleMVP, _TMP_MAT, [worldRadius, worldRadius, worldRadius]);
     mat4.mul(this._cacheCircleMVP, pv, this._cacheCircleMVP);
 
-  // Dot MVP (optional, maybe skip dot in VR for now or make it small)
-  // mat4.scale(this._cacheDotMVP, _TMP_MAT, [worldRadius*0.1, worldRadius*0.1, worldRadius*0.1]);
-  // mat4.mul(this._cacheDotMVP, pv, this._cacheDotMVP);
+    // Hide Dot in VR (Zero Scale) to prevent "Sphere in Eyes" artifact
+    mat4.identity(this._cacheDotMVP);
+    mat4.scale(this._cacheDotMVP, this._cacheDotMVP, [0.0, 0.0, 0.0]);
   }
 }
 

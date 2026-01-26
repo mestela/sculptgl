@@ -324,6 +324,10 @@ class Picking {
       return true;
     }
 
+    // Reset Picking if no hit
+    this._mesh = null;
+    this._pickedFace = -1;
+    this._rLocal2 = 0.0;
     return false;
   }
 

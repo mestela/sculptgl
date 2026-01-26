@@ -97,12 +97,12 @@ class SculptManager {
     this.getCurrentTool().update();
   }
 
-  updateXR(picking, isPressed, origin, dir) {
+  updateXR(picking, isPressed, origin, dir, options) {
     var tool = this.getCurrentTool();
     // if (window.screenLog && Math.random() < 0.01) window.screenLog(`ManagerXR: ToolIdx=${this._toolIndex} Tool=${!!tool}`, "orange");
 
     if (tool && tool.updateXR) {
-      tool.updateXR(picking, isPressed, origin, dir);
+      tool.updateXR(picking, isPressed, origin, dir, options);
     } else {
       if (window.screenLog && isPressed && Math.random() < 0.05) window.screenLog(`ManagerXR: No updateXR for tool ${this._toolIndex}`, "red");
     }
