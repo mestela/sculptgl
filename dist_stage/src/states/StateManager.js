@@ -5,6 +5,7 @@ import StGeometry from 'states/StateGeometry';
 import StDynamic from 'states/StateDynamic';
 import StMultiresolution from 'states/StateMultiresolution';
 import StCustom from 'states/StateCustom';
+import StVoxel from 'states/StateVoxel.js';
 
 class StateManager {
 
@@ -51,6 +52,10 @@ class StateManager {
 
   pushStateMultiresolution(multimesh, type) {
     this.pushState(new StMultiresolution(this._main, multimesh, type));
+  }
+
+  pushStateVoxel(voxelState) {
+    this.pushState(new StVoxel(this._main, voxelState));
   }
 
   setNewMaxStack(maxStack) {

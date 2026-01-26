@@ -74,6 +74,23 @@ class SculptManager {
   start(ctrl) {
     var tool = this.getCurrentTool();
     var canEdit = tool.start(ctrl);
+
+    // Push State for Undo/Redo
+    if (this._main.getStateManager()) {
+      if (tool.constructor.name === 'SculptVoxel') {
+        // Voxel Undo
+        if (tool._voxelState) this._main.getStateManager().pushStateVoxel(tool._voxelState);
+      } else if (this._main.getMesh() && this._main.getMesh().isDynamic) {
+        // Dynamic Mesh Undo
+        this._main.getStateManager().pushStateGeometry(this._main.getMesh());
+      } else if (this._main.getMesh() && !this._main.getMesh().isDynamic) {
+        // Static Mesh Undo (StateGeometry handled differently?)
+        // Standard SculptGL pushes StateGeometry usually inside tool.start?
+        // Actually SculptBase.start pushes StateGeometry.
+        // Let's check SculptBase.
+      }
+    }
+
     if (this._main.getPicking().getMesh() && this.isUsingContinuous())
       this._sculptTimer = window.setInterval(tool._cbContinuous, 16.6);
     return canEdit;

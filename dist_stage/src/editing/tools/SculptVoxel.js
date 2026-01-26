@@ -319,8 +319,6 @@ class SculptVoxel extends SculptBase {
     // IGNORE start() in VR (handled by updateXR)
     if (this._main._xrSession) return;
 
-    if (window.screenLog) window.screenLog("Voxel: start() called", "lime");
-
     // Refresh Global Reference
     window.voxelTool = this;
 
@@ -418,12 +416,10 @@ class SculptVoxel extends SculptBase {
       const mesh = picking.getMesh();
       const meshID = mesh ? mesh.getID() : "Null";
       // Log Grid vs Result to debug "Fine" vs "Offset"
-      // ALWAYS Log for now (throttling handled by eye/user speed)
-      if (this._voxelState) {
-         const min = this._voxelState.min;
-         const step = this._voxelState.step;
-         if (window.screenLog) window.screenLog(`Strk(Desk): I[${inter[0].toFixed(1)}]`, "grey");
-      }
+      // if (this._voxelState && window.screenLog && Math.random() < 0.01) {
+      //    const inter = this._picking.getIntersectionPoint();
+      //    window.screenLog(`Strk(Desk): I[${inter[0].toFixed(1)}]`, "grey");
+      // }
     }
 
     /*
@@ -526,24 +522,11 @@ class SculptVoxel extends SculptBase {
 
       // Guard: Check for NaN/Infinity
       if (isNaN(localPos[0]) || isNaN(localPos[1]) || isNaN(localPos[2])) {
-        // if (window.screenLog) window.screenLog("VR: NaN Pos Ignored", "orange");
         return;
       }
 
       // Revert Fix: We determined addSphere takes Physical Coords.
       // So passing 'localPos' (which is Physical if invGridMatrix is Identity) is correct.
-
-      // Debug: Log Min/Step/Matrix
-      if (window.screenLog && this._lastUpdate % 120 === 0) {
-        const mesh = picking.getMesh();
-        const mat = mesh ? mesh.getMatrix() : null;
-        const dist = vec3.len(localPos);
-        const matStr = mat ? `[${mat[12].toFixed(1)},${mat[13].toFixed(1)},${mat[14].toFixed(1)}]` : "Null";
-        // window.screenLog(`VR: P[${localPos[0].toFixed(1)}] Dist=${dist.toFixed(1)} Mat=${matStr}`, "cyan");
-        if (this._voxelState) {
-          // window.screenLog(`VS: Min[${this._voxelState.min[0]}]`, "orange");
-        }
-      }
 
       // FIX: Desktop works by passing Grid Coords to addSphere (Identity Math).
       // So we must convert World (P) -> Grid (G) for VR to match.

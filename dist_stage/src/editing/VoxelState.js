@@ -336,6 +336,19 @@ class VoxelState {
       res.faces = new Uint32Array(newFaces);
     }
   }
+
+  getDistanceField() {
+    return this._distanceField;
+  }
+
+  setDistanceField(newField) {
+    // Copy the data back
+    if (newField.length !== this._distanceField.length) {
+      console.error("State mismatch in Voxel Undo");
+      return;
+    }
+    this._distanceField.set(newField);
+  }
 }
 
 export default VoxelState;

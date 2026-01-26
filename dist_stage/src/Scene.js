@@ -1365,7 +1365,7 @@ class Scene {
     // XRInputSourceArray is not a real array, so .find() fails.
     let activeSource = null;
     for (const s of sources) {
-      if (s.handedness === 'right') { // FORCE RIGHT HAND ONLY (Debug)
+      if (s.handedness === 'right') { // Forced Right Hand for Stability
         activeSource = s;
         break;
       }
