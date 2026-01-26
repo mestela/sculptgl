@@ -600,8 +600,10 @@ class SculptVoxel extends SculptBase {
   }
 
   setResolution(res) {
+    // if (window.screenLog) window.screenLog(`VoxelState: step=${step} min=${this._voxelState.min[0]},${this._voxelState.min[1]},${this._voxelState.min[2]}`, "orange");
+    // if (window.screenLog) window.screenLog(`GridMat: ${containerMat[12].toFixed(2)},${containerMat[13].toFixed(2)},${containerMat[14].toFixed(2)}`, "orange");
     if (res === this._voxelState.dims[0]) return;
-    if (window.screenLog) window.screenLog(`Voxel: Rebuilding Grid (${res}^3)...`, "orange");
+    // if (window.screenLog) window.screenLog(`Voxel: Rebuilding Grid (${res}^3)...`, "orange");
 
     // Preserve size, just change res
     // Current size is 100.0

@@ -1707,11 +1707,13 @@ class Scene {
           }
         }
 
-        if (isNegative && window.screenLog && this._logThrottle % 60 === 0) window.screenLog("VR: Negative Modifier!", "red");
+        if (isNegative && window.screenLog && this._logThrottle % 60 === 0) {
+          // window.screenLog("VR: Negative Modifier!", "red");
+        }
 
         // DEBUG: Trace Input
         if (window.screenLog && (this._logThrottle % 60 === 0)) {
-          window.screenLog(`VR Input: Src=${activeSource ? activeSource.handedness : 'null'} Trig=${isTriggerPressed} Neg=${isNegative}`, "cyan");
+          // window.screenLog(`VR Input: Src=${activeSource ? activeSource.handedness : 'null'} Trig=${isTriggerPressed} Neg=${isNegative}`, "cyan");
         }
 
         this._sculptManager.updateXR(this._picking, isTriggerPressed, enginePos, dir, { isNegative: isNegative });
