@@ -229,7 +229,72 @@ class SculptGL extends Scene {
         window.screenLog("All Visible + Opacity 0.5", "lime");
       },
       // Force render
-      render: () => { this.render(); }
+      render: () => { this.render(); },
+
+      hideDefault: () => {
+        // Hides all meshes except the last added one (assuming it's the bake)
+        const meshes = this.getMeshes();
+        if (meshes.length > 0) {
+          meshes[0].setVisible(false); // Hide the sphere (usually index 0)
+        }
+        this.render();
+        window.screenLog("Default Sphere Hidden", "lime");
+      },
+
+      analyzeTopology: () => {
+        const mesh = this.getMesh();
+        if (!mesh) return console.log("No Mesh");
+
+        // Check Vertex Rings
+        const vrfStartCount = mesh.getVerticesRingFaceStartCount();
+        const vertRingFace = mesh.getVerticesRingFace();
+        const nbVerts = mesh.getNbVertices();
+        let orphans = 0;
+        let badRings = 0;
+
+        for (let i = 0; i < nbVerts; ++i) {
+          const start = vrfStartCount[i * 2];
+          const count = vrfStartCount[i * 2 + 1];
+          if (count === 0) orphans++;
+          // Optional: Check if ring is valid (sanity check indices)
+          for (let j = start; j < start + count; ++j) {
+            if (vertRingFace[j] >= mesh.getNbFaces()) badRings++;
+          }
+        }
+
+        console.log(`Topology Analysis:`);
+        console.log(`- Vertices: ${nbVerts}`);
+        console.log(`- Faces: ${mesh.getNbFaces()}`);
+        console.log(`- Orphans (No Face Ring): ${orphans}`);
+        console.log(`- Bad Ring Indices: ${badRings}`);
+        window.screenLog(`Topo: V=${nbVerts} Orphans=${orphans} BadRings=${badRings}`, orphans > 0 ? "red" : "lime");
+      },
+
+      analyzeDuplicates: () => {
+        const mesh = this.getMesh();
+        if (!mesh) return console.log("No Mesh");
+        const verts = mesh.getVertices();
+        const nbVerts = mesh.getNbVertices();
+        const map = new Map();
+        let dups = 0;
+
+        // Simple 3D hash
+        for (let i = 0; i < nbVerts; ++i) {
+          const id = i * 3;
+          const x = verts[id];
+          const y = verts[id + 1];
+          const z = verts[id + 2];
+          // key precision 4 decimal places
+          const key = `${x.toFixed(4)},${y.toFixed(4)},${z.toFixed(4)}`;
+          if (map.has(key)) {
+            dups++;
+          } else {
+            map.set(key, i);
+          }
+        }
+        console.log(`Duplicate Vertices Check: ${dups} duplicates found.`);
+        window.screenLog(`Duplicates: ${dups} (Total V=${nbVerts})`, dups > 0 ? "red" : "lime");
+      }
     };
 
     this.addEvents();

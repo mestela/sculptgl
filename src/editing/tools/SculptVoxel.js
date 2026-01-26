@@ -758,11 +758,8 @@ class SculptVoxel extends SculptBase {
 
     // 1. Extract Geometry
     const vAr = new Float32Array(this._voxelMesh.getVertices()); // Clone
-    const fAr = new Uint32Array(this._voxelMesh.getFaces()); // Clone
 
     // 1b. Apply Transform to Vertices (Freeze Transform)
-    // The voxel mesh is in Grid Coordinates (0..64) scaled/translated by getMatrix()
-    const padding = 0; // SurfaceNets might return vertices in 0..64 range
     const mat = this._voxelMesh.getMatrix();
     const temp = vec3.create();
     for (let i = 0; i < vAr.length; i += 3) {
@@ -775,30 +772,43 @@ class SculptVoxel extends SculptBase {
       vAr[i + 2] = temp[2];
     }
 
-    // 2. Create Object Structure similar to Primitives return
-    const meshData = {
-      vertices: vAr,
-      faces: fAr
-    };
+    // 2. Explicitly Triangulate Quads to prevent "Manifold Explosion"
+    // SurfaceNets produces Quads [a,b,c,d]. We want [a,b,c,-1] and [a,c,d,-1].
+    const quadFaces = this._voxelMesh.getFaces();
+    const nbQuads = quadFaces.length / 4;
+    const fArTri = new Uint32Array(nbQuads * 2 * 4); // 2 Tris per Quad, stride 4
+    let acc = 0;
+    for (let i = 0; i < nbQuads; ++i) {
+      let id = i * 4;
+      let a = quadFaces[id];
+      let b = quadFaces[id + 1];
+      let c = quadFaces[id + 2];
+      let d = quadFaces[id + 3];
+
+      // Tri 1: a-b-c
+      fArTri[acc++] = a;
+      fArTri[acc++] = b;
+      fArTri[acc++] = c;
+      fArTri[acc++] = Utils.TRI_INDEX;
+
+      // Tri 2: a-c-d
+      fArTri[acc++] = a;
+      fArTri[acc++] = c;
+      fArTri[acc++] = d;
+      fArTri[acc++] = Utils.TRI_INDEX;
+    }
 
     // 3. Create Standard Mesh (Multimesh)
-    // We use Import-like logic or simply new Multimesh(new MeshStatic(gl))
-    // But Multimesh expects a Mesh object.
     const staticMesh = new MeshStatic(gl);
     staticMesh.setVertices(vAr);
-    staticMesh.setFaces(fAr);
+    staticMesh.setFaces(fArTri);
 
     // Init Topology & Arrays FIRST
-    staticMesh.init();
-    staticMesh.initRender();
-
-    // 3. Configure Mesh for Standard Sculpting
-    // We must disable 'flatShading' optimization so normals are computed for brushes/PBR.
-    staticMesh.setFlatShading(false);
     staticMesh.setUseDrawArrays(false); // Ensure indexed
     staticMesh.setMode(this._main._gl.TRIANGLES);
 
     staticMesh.init();
+    staticMesh.initRender();
 
     // THEN Set Shader/Colors
     staticMesh.setShaderType(Enums.Shader.MATCAP);
@@ -818,7 +828,7 @@ class SculptVoxel extends SculptBase {
     // CRITICAL: Compute Normals for Smooth Shading
     // SurfaceNets provides vertices/faces but no normals. 
     // MeshStatic defaults to all-zero normals, which causes invisibility with PBR/Matcap.
-    this._computeNormals(staticMesh, vAr, fAr);
+    this._computeNormals(staticMesh, vAr, fArTri);
 
     // Standard White Colors
     const cAr = new Float32Array(vAr.length);
@@ -827,7 +837,7 @@ class SculptVoxel extends SculptBase {
 
     // CRITICAL FIX: Repair Normals for Degenerate Geometry
     this._fixNormals(staticMesh);
-    if (window.screenLog) window.screenLog(`Bake: V=${vAr.length / 3} F=${fAr.length / 4}`, "cyan");
+    if (window.screenLog) window.screenLog(`Bake: V=${vAr.length / 3} F=${fArTri.length / 4}`, "cyan");
 
     staticMesh.setFlatShading(false); // Smooth Shading
     staticMesh.setShowWireframe(false); // Default Wireframe OFF
@@ -841,8 +851,10 @@ class SculptVoxel extends SculptBase {
     const multiMesh = new Multimesh(staticMesh);
 
     // CRITICAL: Ensure Multimesh buffers are synced
-    // CRITICAL: Ensure Multimesh buffers are synced
-    multiMesh.updateResolution();
+    // CRITICAL: Ensure Multimesh buffers are synced and initialized (matches Scene.js logic)
+    multiMesh.init();
+    multiMesh.updateResolution(); // Updates internal buffers (Index/Wireframe) NOT computed by init()
+
     if (window.screenLog) window.screenLog(`MultiMesh: Tris=${multiMesh.getNbTriangles()}`, "cyan");
 
     // 5. Add to Scene
