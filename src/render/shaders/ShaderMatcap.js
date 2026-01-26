@@ -49,7 +49,7 @@ ShaderMatcap.matcaps = [{
 ShaderMatcap.uniforms = {};
 ShaderMatcap.attributes = {};
 
-ShaderMatcap.uniformNames = ['uTexture0', 'uAlbedo', 'uRotCorrection'];
+ShaderMatcap.uniformNames = ['uTexture0', 'uAlbedo', 'uRotCorrection', 'uFlat'];
 Array.prototype.push.apply(ShaderMatcap.uniformNames, ShaderBase.uniformNames.commonUniforms);
 
 ShaderMatcap.vertex = [
@@ -81,6 +81,7 @@ ShaderMatcap.vertex = [
 ].join('\n');
 
 ShaderMatcap.fragment = [
+  '#extension GL_OES_standard_derivatives : enable',
   'precision highp float;', // Fix for solarization/overflow artifacts
   'uniform sampler2D uTexture0;',
   'varying highp vec3 vVertex;',
@@ -88,12 +89,17 @@ ShaderMatcap.fragment = [
   'varying vec3 vNormal;',
   'varying vec3 vColor;',
   'uniform float uAlpha;',
+  'uniform int uFlat;', // 0 or 1
   'uniform mat3 uRotCorrection;', // Stabilizes normals to Horizon
   ShaderBase.strings.fragColorUniforms,
   ShaderBase.strings.fragColorFunction,
   'void main() {',
+  '  vec3 normal = vNormal;',
+  '  if (uFlat > 0) {',
+  '    normal = normalize(cross(dFdx(vVertex), dFdy(vVertex)));',
+  '  }',
   '  // Stabilize Normal: Transform View Space Normal -> Billboard Space Normal',
-  '  vec3 normal = normalize(uRotCorrection * vNormal);',
+  '  normal = normalize(uRotCorrection * normal);',
   '  ',
   '  vec2 texCoord = normal.xy * 0.5 + 0.5;',
   '  texCoord.y = 1.0 - texCoord.y;', // Flip Y
@@ -105,6 +111,8 @@ ShaderMatcap.fragment = [
 ShaderMatcap.updateUniforms = function (mesh, main) {
   var gl = mesh.getGL();
   var uniforms = this.uniforms;
+
+  gl.uniform1i(uniforms.uFlat, mesh.getFlatShading()); // Pass Flat Flag
 
   gl.activeTexture(gl.TEXTURE0);
   mesh.setTexture0(ShaderMatcap.textures[mesh.getMatcap()]);

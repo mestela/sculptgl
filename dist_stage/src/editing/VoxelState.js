@@ -21,6 +21,11 @@ class VoxelState {
     // Data
     // We only need distance field for now. Colors/Materials can be added later.
     this._distanceField = new Float32Array(this._count);
+
+    // Active Bounds (Inclusive)
+    this._activeMin = new Int32Array([res, res, res]);
+    this._activeMax = new Int32Array([0, 0, 0]);
+
     this.clear(); // Init to 10000.0 (Far)
 
     // Cache helper objects
@@ -46,6 +51,10 @@ class VoxelState {
 
   clear() {
     this._distanceField.fill(10000.0); // Safe far distance (avoid Infinity for interpolation)
+
+    // Reset Bounds to Inverted
+    this._activeMin.set([this._resolution, this._resolution, this._resolution]);
+    this._activeMax.set([0, 0, 0]);
   }
 
   // Boolean Union: min(existing, new)
@@ -125,6 +134,17 @@ class VoxelState {
 
     // if (window.screenLog && changed) window.screenLog(`VS: Mod ${hits} voxels`, "lime");
 
+    // Update Active Bounds
+    if (changed) {
+      if (ixMin < this._activeMin[0]) this._activeMin[0] = ixMin;
+      if (iyMin < this._activeMin[1]) this._activeMin[1] = iyMin;
+      if (izMin < this._activeMin[2]) this._activeMin[2] = izMin;
+
+      if (ixMax > this._activeMax[0]) this._activeMax[0] = ixMax;
+      if (iyMax > this._activeMax[1]) this._activeMax[1] = iyMax;
+      if (izMax > this._activeMax[2]) this._activeMax[2] = izMax;
+    }
+
     return changed;
   }
 
@@ -173,24 +193,6 @@ class VoxelState {
           var index = i + j * rx + k * rxy;
           var oldDist = df[index];
 
-          // Difference: max(old, -new)
-          // We want to carve OUT the sphere.
-          // Sphere dist is negative INSIDE.
-          // -dist is positive INSIDE.
-          // max(old, pos) -> pushes surface away?
-          // Wait.
-          // SDF: < 0 is inside. > 0 is outside.
-          // We want to make the inside of the sphere (>0 distance) become OUTSIDE.
-          // So we want the resulting distance to be > 0 inside the sphere.
-          // If we use max(old, -dist):
-          // Inside sphere: dist is -5. -dist is +5.
-          // If old was -10 (deep inside object), max(-10, 5) = 5.
-          // Result is +5 (Outside). Correct.
-
-          // Optimization: Only update if we are "close" to affecting it?
-          // If -dist < oldDist, we don't change anything?
-          // Yes. max(a, b) only changes a if b > a.
-
           if (-dist > oldDist) {
             df[index] = -dist;
             changed = true;
@@ -199,12 +201,44 @@ class VoxelState {
       }
     }
 
+    // Update Active Bounds
+    if (changed) {
+      if (ixMin < this._activeMin[0]) this._activeMin[0] = ixMin;
+      if (iyMin < this._activeMin[1]) this._activeMin[1] = iyMin;
+      if (izMin < this._activeMin[2]) this._activeMin[2] = izMin;
+
+      if (ixMax > this._activeMax[0]) this._activeMax[0] = ixMax;
+      if (iyMax > this._activeMax[1]) this._activeMax[1] = iyMax;
+      if (izMax > this._activeMax[2]) this._activeMax[2] = izMax;
+    }
+
     return changed;
   }
 
   computeMesh() {
+    // Clamp Bounds (Ensure padding of 1 for correct gradients/iso-surface)
+    // SurfaceNets needs to look at n-1 or n+1?
+    // It creates faces for "current" voxel by looking back?
+    // We should pad by 1 or 2.
+    // Loop limits: 0 .. dims-1.
+    // We should clamp the Active Bounds to [0, dims].
+
+    // Pass bounds to SurfaceNets
+    const bounds = {
+      min: [
+        Math.max(0, this._activeMin[0] - 2),
+        Math.max(0, this._activeMin[1] - 2),
+        Math.max(0, this._activeMin[2] - 2)
+      ],
+      max: [
+        Math.min(this._dims[0], this._activeMax[0] + 2),
+        Math.min(this._dims[1], this._activeMax[1] + 2),
+        Math.min(this._dims[2], this._activeMax[2] + 2)
+      ]
+    };
+
     // Use SurfaceNets (Dual Contouring style)
-    const res = SurfaceNets.computeSurface(this._voxels);
+    const res = SurfaceNets.computeSurface(this._voxels, bounds); // Pass bounds!
 
     // Log Raw Stats
     // if (window.screenLog) window.screenLog(`VS: Generated ${res.vertices.length/3} verts, ${res.faces.length/4} quads`, "grey");

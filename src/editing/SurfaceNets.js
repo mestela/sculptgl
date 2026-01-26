@@ -160,7 +160,7 @@ var createFace = function (edgeMask, mask, buffer, R, m, x, faces) {
   }
 };
 
-SurfaceNets.computeSurface = function (voxels) {
+SurfaceNets.computeSurface = function (voxels, bounds) {
   var dims = voxels.dims;
 
   var vertices = [];
@@ -174,22 +174,76 @@ SurfaceNets.computeSurface = function (voxels) {
   var nbBuf = 1;
   var buffer = new Int32Array(R[2] * 2);
 
-  //March over the voxel grid
-  for (x[2] = 0; x[2] < dims[2] - 1; ++x[2], n += dims[0], nbBuf ^= 1, R[2] = -R[2]) {
+  // Bounds (Default to full grid if missing)
+  var minX = bounds ? bounds.min[0] : 0;
+  var minY = bounds ? bounds.min[1] : 0;
+  var minZ = bounds ? bounds.min[2] : 0;
+  var maxX = bounds ? bounds.max[0] : dims[0] - 1;
+  var maxY = bounds ? bounds.max[1] : dims[1] - 1;
+  var maxZ = bounds ? bounds.max[2] : dims[2] - 1;
 
-    //m is the pointer into the buffer we are going to use.  
-    //This is slightly obtuse because javascript does not have good support for packed data structures, so we must use typed arrays :(
-    //The contents of the buffer will be the indices of the vertices on the previous x/y slice of the volume
-    var m = 1 + (dims[0] + 1) * (1 + nbBuf * (dims[1] + 1));
+  // Stride constants
+  var strideX = 1;
+  var strideY = dims[0];
+  var strideZ = dims[0] * dims[1];
 
-    for (x[1] = 0; x[1] < dims[1] - 1; ++x[1], ++n, m += 2) {
-      for (x[0] = 0; x[0] < dims[0] - 1; ++x[0], ++n, ++m) {
+  var bufStrideY = dims[0] + 1;
+  var bufStrideZ = (dims[0] + 1) * (dims[1] + 1);
+
+  // March over the voxel grid (sub-region)
+  for (x[2] = minZ; x[2] < maxZ; ++x[2]) {
+    nbBuf ^= 1;
+    R[2] = -R[2]; // Flip orientation?
+
+    // Base n (3D index) for this Z slice
+    var nZ = x[2] * strideZ;
+
+  // Base m (Buffer index) for this Z slice (Active Buffer)
+  // Buffer layout: [Slice0][Slice1]...
+  // nbBuf toggles 0/1.
+  // m offset = 1 + ...?
+  // Original: var m = 1 + (dims[0] + 1) * (1 + nbBuf * (dims[1] + 1));
+  // Let's match original buffer offset logic exactly to properly use R strides.
+  // m points to (0,0) of the current buffer slice?
+  // In original loop, m starts at (0,0) of slice.
+  // The "1 +" might be margin?
+  // buffer size is R[2]*2 = (dx+1)(dy+1)*2.
+  // One slice size is R[2].
+  // If nbBuf=0, use slice 0? Or slice 1?
+  // Original: `1 + (dims[0] + 1) * (1 + nbBuf * (dims[1] + 1))` seems wrong?
+  // Let's re-read original:
+  // `var m = 1 + (dims[0] + 1) * (1 + nbBuf * (dims[1] + 1));`
+  // (dims[1]+1) is height of 2D slice?
+  // nbBuf is 0 or 1.
+  // This seems to point deep into the array?
+  // width = dims[0]+1. height = dims[1]+1.
+  // sliceSize = width * height.
+  // If nbBuf=0: m = 1 + width * (1). = 1 + width. (Row 1, Col 1?)
+  // If nbBuf=1: m = 1 + width * (1 + height). = 1 + width + width*height. (Row 1, Col 1 of Slice 2?)
+  // Yes. It adds a 1-pixel border margin in buffer?
+
+    var bufferOffset = nbBuf * bufStrideZ; // Slice Access
+    // We iterate 0..dims-1. Buffer is dims+1.
+
+    for (x[1] = minY; x[1] < maxY; ++x[1]) {
+      // Calc n, m for start of row
+      n = nZ + x[1] * strideY + minX;
+
+      // m must correspond to x[0], x[1] in the buffer
+      // m = bufferOffset + x[1] * bufStrideY + x[0]
+      // PLUS the margin? Original loop had margin.
+      // Original starts at x[1]=0.
+      // `m += 2` implies skipping margin?
+      // Let's just use direct calculation:
+      // m = bufferOffset + (x[1] + 1) * bufStrideY + (minX + 1);
+      var m = bufferOffset + (x[1] + 1) * bufStrideY + (minX + 1);
+
+      for (x[0] = minX; x[0] < maxX; ++x[0], ++n, ++m) {
 
         var mask = readScalarValues(voxels, grid, dims, n, cols, mats);
-        //Check for early termination if cell does not intersect boundary
         if (mask === 0 || mask === 0xff)
           continue;
-        //Sum up edge intersections
+
         var edgeMask = edgeTable[mask];
         buffer[m] = vertices.length / 3;
         interpolateVertices(edgeMask, cubeEdges, grid, x, vertices);
@@ -198,7 +252,6 @@ SurfaceNets.computeSurface = function (voxels) {
     }
   }
 
-  //All done!  Return the result
   return {
     colors: new Float32Array(cols),
     materials: new Float32Array(mats),

@@ -166,11 +166,10 @@ class SculptVoxel extends SculptBase {
     if (!this._voxelMesh) {
       this._voxelMesh = new MeshStatic(gl);
       this._voxelMesh.setMode(gl.TRIANGLES);
-      this._voxelMesh.setUseDrawArrays(true); // SurfaceNets produces indexed geometry?
-      // Actually SurfaceNets produces faces now?
-      // "faces" is Uint32Array.
+      this._voxelMesh.setUseDrawArrays(false); // Indexed Geometry is faster/smaller
+      this._voxelMesh.setFlatShading(true);    // Skip normal computation, use shader derivatives
 
-      this._voxelMesh.setID(this._voxelMesh.getID()); // Keep ID?
+      this._voxelMesh.setID(this._voxelMesh.getID());
 
       // Default to MATCAP for better visibility
       this._voxelMesh.setShaderType(Enums.Shader.MATCAP);
@@ -179,32 +178,26 @@ class SculptVoxel extends SculptBase {
       if (window.screenLog) window.screenLog("Voxel: Mesh Created (MATCAP)", "lime");
     }
 
-    this._voxelMesh.setVertices(res.vertices);
-    this._voxelMesh.setFaces(res.faces);
+    // Set Data
+    this._voxelMesh.setVertices(res.vertices); // Float32Array
+    this._voxelMesh.setFaces(res.faces);       // Uint32Array
 
-    // Calculate Normals? 
-    // SurfaceNets doesn't strictly give normals, but MeshStatic.init() might compute them?
-    // We need Normals for many shaders.
-    // Let's force computation if missing.
+    // MINIMAL UPDATE (Avoids initTopology/Octree which are O(N) or worse)
+    // 1. Resize/Init Colors & Materials
+    this._voxelMesh.initColorsAndMaterials();
 
-    this._voxelMesh.init();
-    // Matcap Texture
-    // We need to set a matcap texture. 
-    // SculptGL usually loads them. Let's use 'pearl' or 'clay'.
-    // We can assume main._matcapTexture might be set, or we default to it.
-    // If not, we can force one if we find it.
-    // For now, let's rely on RenderData defaults or try to set one.
-    this._voxelMesh.setMatcap(0); // Index 0 is usually pearl/clay?
+    // 2. Resize/Init Normals & Other Arrays
+    // allocateArrays uses getNbVertices to resize _normalsXYZ etc.
+    this._voxelMesh.allocateArrays();
 
-    // this._voxelMesh.initRender(); // Called by init?
-
-    // Update Materials/Colors if available?
-    // For now flat color
+    // 3. Set Color/Prop Defaults (after alloc)
     this._voxelMesh.setFlatColor([0.2, 0.9, 0.2]); // Bright Green
     this._voxelMesh.setOpacity(1.0);
+    this._voxelMesh.setMatcap(0);
 
-    // Log Stats
-    // console.log(`Voxel Mesh Updated: ${res.vertices.length/3} verts`);
+    // 4. Upload to GPU (Skip Geometry/Normal calculation logic)
+    // We rely on Flat Shading in ShaderMatcap (using dFdx/dFdy) so we don't need vertex normals.
+    this._voxelMesh.updateBuffers();
   }
 
   logVoxelInfo() {
@@ -310,9 +303,9 @@ class SculptVoxel extends SculptBase {
   forceInit() {
     // Force an initial sphere at the center so we have a mesh to see immediately
     if (this._lastUpdate === 0) {
-      if (window.screenLog) window.screenLog("Voxel: adding initial sphere at center...", "yellow");
-      this._voxelState.addSphere([0, 0, 0], 15.0, [0.2, 1.0, 0.2]); // 15 unit sphere
-      this.updateMesh();
+      if (window.screenLog) window.screenLog("Voxel: Initial Sphere DISABLED", "grey");
+      // this._voxelState.addSphere([0, 0, 0], 15.0, [0.2, 1.0, 0.2]); // 15 unit sphere
+      // this.updateMesh();
       this._lastUpdate = 1;
     }
   }
@@ -516,7 +509,13 @@ class SculptVoxel extends SculptBase {
   updateXR(picking, isPressed, origin, dir, options) {
     try {
       // VoxelXR Update
-      if (!isPressed) return;
+      // Ensure we hide distracting meshes
+      this.hideOtherMeshes();
+
+      if (!isPressed) {
+        this._lastXRPos = null; // Reset stroke
+        return;
+      }
 
       // 1. Transform EnginePos (World) to Grid Local Space
       var localPos = vec3.create();
@@ -527,32 +526,20 @@ class SculptVoxel extends SculptBase {
         return;
       }
 
-      // Revert Fix: We determined addSphere takes Physical Coords.
-      // So passing 'localPos' (which is Physical if invGridMatrix is Identity) is correct.
-
-      // FIX: Desktop works by passing Grid Coords to addSphere (Identity Math).
-      // So we must convert World (P) -> Grid (G) for VR to match.
-      // G = (P - Min) / Step
-      if (this._voxelState) {
-        // const min = this._voxelState.min;
-        // const step = this._voxelState.step;
-
-        // Debug: Log Min/Step
-        // if (window.screenLog && this._lastUpdate % 60 === 0) {
-        //   window.screenLog(`VS: Min=[${min[0]},${min[1]}] Step=${step}`, "orange");
-        // }
-
-        // Apply Transform IF the log proves we need it.
-        // For now, let's keep the transform active but LOG the result.
-        // localPos[0] = (localPos[0] - min[0]) / step;
-        // localPos[1] = (localPos[1] - min[1]) / step;
-        // localPos[2] = (localPos[2] - min[2]) / step;
+      // Throttle: Distance Check
+      // We should only paint if we moved at least 0.25 unit (Sub-voxel resolution)
+      // This prevents zero-delta updates but allows smooth curves.
+      if (this._lastXRPos) {
+        var dx = localPos[0] - this._lastXRPos[0];
+        var dy = localPos[1] - this._lastXRPos[1];
+        var dz = localPos[2] - this._lastXRPos[2];
+        var distSq = dx * dx + dy * dy + dz * dz;
+        if (distSq < 0.0625) return; // (0.25^2)
       }
 
-      // Debug: Log Local Pos
-      if (window.screenLog && Math.random() < 0.05) {
-        // window.screenLog(`VR Pos: G[${localPos[0].toFixed(1)},${localPos[1].toFixed(1)}]`, "cyan");
-      }
+      // Update Last Pos
+      if (!this._lastXRPos) this._lastXRPos = vec3.create();
+      vec3.copy(this._lastXRPos, localPos);
 
       // 2. Add Sphere at LocalPos
       // Radius Source: this._radius (0..100) set by GuiXR
@@ -573,26 +560,18 @@ class SculptVoxel extends SculptBase {
       var changed = false;
       var isNegative = (options && options.isNegative);
 
-      // DEBUG: Log VR Stroke (Throttled)
-      // if (window.screenLog && (this._lastUpdate % 60 === 0)) {
-        // window.screenLog(`VR: Neg=${isNegative} R=${radius.toFixed(1)} P=${localPos[0].toFixed(1)}`, isNegative ? "red" : "lime");
-      // }
-      
       // Re-enable real update loop
       if (isNegative) {
         changed = this._voxelState.subtractSphere(localPos, radius);
-        // if (window.screenLog && (this._lastUpdate % 30 === 0)) window.screenLog("Voxel: Neg Mod!", "red");
       } else {
         changed = this._voxelState.addSphere(localPos, radius, color);
       }
 
       if (changed) {
-        // Throttle logs
-        // if (window.screenLog && (this._lastUpdate++ % 30 === 0)) window.screenLog(`Voxel: Mod R=${radius.toFixed(1)}!`, "lime");
         this.updateMesh();
       } else {
         // Log lack of change (maybe out of bounds or air subtract)
-        if (window.screenLog && (this._lastUpdate % 60 === 0)) window.screenLog("VR: No Change (Air?)", "grey");
+        // if (window.screenLog && (this._lastUpdate % 60 === 0)) window.screenLog("VR: No Change (Air?)", "grey");
       }
       this._lastUpdate++;
     } catch (e) {
@@ -824,6 +803,21 @@ class SculptVoxel extends SculptBase {
     staticMesh.setMatcap(0); // Pearl/Clay
     staticMesh.setFlatColor([0.6, 0.6, 0.6]);
 
+    // Set Sane PBR Defaults (Roughness 0.18, Metallic 0.08, Mask 0.0)
+    // MeshStatic.initCards already calls initColorsAndMaterials which sets defaults?
+    // Let's force it just in case logic varies.
+    // MeshStatic default constructor initializes mAr to defaults.
+    // But we reuse init(). 
+    // Let's verify: Mesh.js initColorsAndMaterials() loops and sets.
+    // So staticMesh SHOULD have valid PBR defaults.
+    // However, if we want to be safe:
+    // staticMesh.setMaterials(null); // Triggers re-init if null? NO.
+    // Let's rely on init() logic but maybe standard mesh materials are fine.
+    // Issue might be Env Map loading in PBR shader.
+
+    staticMesh.updateGeometry(); // Force sync of all buffers
+    staticMesh.updateBuffers();
+
     // Copy Transform (Min + Scale)
     mat4.copy(staticMesh.getMatrix(), this._voxelMesh.getMatrix());
 
@@ -840,9 +834,48 @@ class SculptVoxel extends SculptBase {
 
     // 6. Reset Voxel State (Clear Grid)
     this._voxelState.clear();
+    // Hide default hidden meshes might be re-enabled if we switch tools?
+    // No, we should unhide others if we switch tools?
+    // But we just baked. The user likely wants to see the result.
+    // The "Other" meshes (Default Sphere) should remain hidden if they were hidden.
+
     this.updateMesh(); // Will show empty or initial state
 
     if (window.screenLog) window.screenLog("Voxel: Bake Complete!", "green");
+  }
+
+  hideOtherMeshes() {
+    // Helper to hide everything except Voxel Mesh
+    if (this._hiddenOthers) return;
+    this._hiddenOthers = true;
+
+    const meshes = this._main.getMeshes();
+    for (let m of meshes) {
+      if (m !== this._voxelMesh && m !== this._debugCube) {
+        if (m.isVisible()) {
+          m.setVisible(false);
+          // Tag it so we know we hid it?
+          m._autoHiddenByVoxel = true;
+        }
+      }
+    }
+    if (window.screenLog) window.screenLog("Voxel: Default Meshes Hidden", "grey");
+  }
+
+  unhideOtherMeshes() {
+    // Helper to restore
+    /*
+    if (!this._hiddenOthers) return;
+    this._hiddenOthers = false;
+    const meshes = this._main.getMeshes();
+    for (let m of meshes) {
+      if (m._autoHiddenByVoxel) {
+        m.setVisible(true);
+        delete m._autoHiddenByVoxel;
+      }
+    }
+    */
+    // Decision: Do NOT unhide automatically. Let user manage scene.
   }
 
   bake() {
