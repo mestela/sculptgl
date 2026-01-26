@@ -1,10 +1,10 @@
-# SculptVR - WebXR Sculpting
+# SculptXR - WebXR Sculpting
 
 ## Status
 **Active Development**: This is a fork of [SculptGL](http://stephaneginier.com/sculptgl) focused on adding WebXR capabilities, specifically a VR Menu system.
 (The original project is no longer actively maintained by the author).
 
-**[Try the Live VR Build Here](https://tokeru.com/sculptvr/)** 
+**[Try the Live VR Build Here](https://tokeru.com/sculptxr/)** 
 
 ## Releases
 - v0.5.60: fixed desktop exposure (removed double-gamma), calibrated VR scale (100 units = 1m), fixed initial camera offset (starting position)
@@ -13,7 +13,7 @@
 - v0.5.22: better symmetry, basic file IO, single grip can translate and rotate. 
 
 ![SculptGL VR Screenshot](assets/sculptgl_vr.webp)
-*SculptGL running on desktop, with SculptGL-VR running natively on a Quest 3 in foreground in AR/passthrough mode.*
+*SculptGL running on desktop, with SculptXR running natively on a Quest 3 in foreground in AR/passthrough mode.*
 
 ## Supported platforms
 It should work on any WebXR compatible device. So far I've tested on
