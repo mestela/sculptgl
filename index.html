@@ -92,7 +92,7 @@
       "misc/getOptionsURL": "./src/misc/getOptionsURL.js",
       
       "math3d/Camera": "./src/math3d/Camera.js",
-      "math3d/Picking": "./src/math3d/Picking.js?v=5120",
+      "math3d/Picking": "./src/math3d/Picking.js",
       "math3d/Geometry": "./src/math3d/Geometry.js",
       "math3d/OctreeCell": "./src/math3d/OctreeCell.js",
       
@@ -128,10 +128,10 @@
       "editing/MarchingCubes": "./src/editing/MarchingCubes.js",
       "editing/Remesh": "./src/editing/Remesh.js",
       "editing/Reversion": "./src/editing/Reversion.js",
-      "editing/SculptManager": "./src/editing/SculptManager.js?v=5120",
+      "editing/SculptManager": "./src/editing/SculptManager.js",
       "editing/Subdivision": "./src/editing/Subdivision.js",
       "editing/SurfaceNets": "./src/editing/SurfaceNets.js",
-      "editing/VoxelState": "./src/editing/VoxelState.js?v=5149",
+      "editing/VoxelState": "./src/editing/VoxelState.js",
       
       "editing/tools/Brush": "./src/editing/tools/Brush.js",
       "editing/tools/Crease": "./src/editing/tools/Crease.js",
@@ -144,7 +144,7 @@
       "editing/tools/Paint": "./src/editing/tools/Paint.js",
       "editing/tools/Pinch": "./src/editing/tools/Pinch.js",
       "editing/tools/SculptBase": "./src/editing/tools/SculptBase.js",
-      "editing/tools/SculptVoxel": "./src/editing/tools/SculptVoxel.js?v=5121",
+      "editing/tools/SculptVoxel": "./src/editing/tools/SculptVoxel.js",
       "editing/tools/Smooth": "./src/editing/tools/Smooth.js",
       "editing/tools/Tools": "./src/editing/tools/Tools.js",
       "editing/tools/Transform": "./src/editing/tools/Transform.js",
@@ -164,15 +164,15 @@
       "files/ImportSGL": "./src/files/ImportSGL.js",
       "files/ImportSTL": "./src/files/ImportSTL.js",
       
-      "mesh/Mesh": "./src/mesh/Mesh.js?v=5122",
-      "./src/mesh/Mesh.js": "./src/mesh/MeshSafe.js?v=5122",
+      "mesh/Mesh": "./src/mesh/Mesh.js",
+      "./src/mesh/Mesh.js": "./src/mesh/MeshSafe.js",
       "mesh/MeshData": "./src/mesh/MeshData.js",
       "mesh/RenderData": "./src/mesh/RenderData.js",
       "mesh/TransformData": "./src/mesh/TransformData.js",
       "mesh/dynamic/Decimation": "./src/mesh/dynamic/Decimation.js",
       "mesh/dynamic/MeshDynamic": "./src/mesh/dynamic/MeshDynamic.js",
       "mesh/dynamic/Subdivision": "./src/mesh/dynamic/Subdivision.js",
-      "mesh/meshStatic/MeshStatic": "./src/mesh/meshStatic/MeshStatic.js?v=5120",
+      "mesh/meshStatic/MeshStatic": "./src/mesh/meshStatic/MeshStatic.js",
       "mesh/multiresolution/MeshResolution": "./src/mesh/multiresolution/MeshResolution.js",
       "mesh/multiresolution/Multimesh": "./src/mesh/multiresolution/Multimesh.js",
       
@@ -211,12 +211,12 @@
       "drawables/Rtt": "./src/drawables/Rtt.js",
       "drawables/Selection": "./src/drawables/Selection.js",
       "drawables/VRLaser": "./src/drawables/VRLaser.js",
-      "drawables/VRMenu": "./src/drawables/VRMenu.js?v=0.3.68",
+      "drawables/VRMenu": "./src/drawables/VRMenu.js",
 
       "misc/": "./src/misc/",
       "math3d/": "./src/math3d/",
       "gui/": "./src/gui/",
-      "gui/GuiXR": "./src/gui/GuiXR.js?v=0.3.68",
+      "gui/GuiXR": "./src/gui/GuiXR.js",
       "editor/": "./src/editor/",
       "editing/": "./src/editing/",
       "files/": "./src/files/",
@@ -232,9 +232,9 @@
       "render/shaders/glsl/outline.glsl": "./src/render/shaders/glsl/outline.glsl.js",
       "render/shaders/glsl/pbr.glsl": "./src/render/shaders/glsl/pbr.glsl.js",
       
-      "Scene": "./src/Scene.js?v=276",
-      "SculptGL": "./src/SculptGL.js?v=276",
-      "render/shaders/ShaderBase.js": "./src/render/shaders/ShaderBase.js?v=5122"
+      "Scene": "./src/Scene.js",
+      "SculptGL": "./src/SculptGL.js",
+      "render/shaders/ShaderBase.js": "./src/render/shaders/ShaderBase.js"
     }
   }
   </script>
@@ -349,7 +349,7 @@
 
 
             // Show version on screen
-            if (window.screenLog) window.screenLog("SculptXR VERSION: v0.5.357 - Sync Fix", "lime");
+            if (window.screenLog) window.screenLog("SculptXR VERSION: v0.5.362 - Clean Importmap", "lime");
 
             // Check HTTPS
             if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
