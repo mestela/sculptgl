@@ -1,7 +1,7 @@
 {
   "name": "sculptxr",
   "homepage": "https://github.com/mestela/sculptxr",
-  "version": "0.9.0",
+  "version": "0.6.0",
   "description": "A WebGL digital sculpting app",
   "author": "Stéphane GINIER",
   "license": "MIT",
