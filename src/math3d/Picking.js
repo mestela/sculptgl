@@ -304,6 +304,8 @@ class Picking {
         }
 
         if (distSq < localRadiusSq) { // Found a potential hit within radius
+
+
           // Convert dist to world for comparison
           var worldDist = Math.sqrt(distSq) * scale;
           if (worldDist < nearDistance) {
