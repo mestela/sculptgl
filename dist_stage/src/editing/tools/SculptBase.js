@@ -1,5 +1,6 @@
 import Enums from 'misc/Enums';
 import Utils from 'misc/Utils';
+import Geometry from 'math3d/Geometry';
 import { vec3, mat4 } from 'gl-matrix';
 
 // Overview sculpt :
@@ -317,15 +318,24 @@ class SculptBase {
         // World -> Local
         var localPos = vec3.create();
         vec3.transformMat4(localPos, worldPos, mInv);
-        localPos[0] = -localPos[0]; // Mirror X
+
+        // Correct Symmetry Mirroring (Local Space)
+        var ptPlane = mesh.getSymmetryOrigin(); // Local Space
+        var nPlane = mesh.getSymmetryNormal();  // Local Space
+        Geometry.mirrorPoint(localPos, ptPlane, nPlane);
 
         // Local -> World
         var symWorldPos = vec3.create();
         vec3.transformMat4(symWorldPos, localPos, mesh.getMatrix());
 
+        // LOGGING
+        if (window.screenLog && Math.random() < 0.05) {
+          window.screenLog(`Sym Check: Pos=${worldPos[0].toFixed(2)} Sym=${symWorldPos[0].toFixed(2)}`, "yellow");
+        }
+
         // Intersection
         var rWorld = Math.sqrt(picking._rWorld2);
-        pickingSym.intersectionSphereMeshes([mesh], symWorldPos, rWorld);
+        pickingSym.intersectionSphereMeshes([mesh], symWorldPos, rWorld * 4.0); // Fix: 4x Search Radius for snapping (same as Primary)
 
         if (pickingSym.getMesh()) {
           pickingSym.setLocalRadius2(picking.getLocalRadius2());

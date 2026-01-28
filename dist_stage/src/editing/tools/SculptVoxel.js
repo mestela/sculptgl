@@ -155,6 +155,11 @@ class SculptVoxel extends SculptBase {
     this._main.render();
   }
 
+  // Override SculptBase.pushState to use Voxel State
+  pushState() {
+    this._main.getStateManager().pushStateVoxel(this._voxelState);
+  }
+
   updateMesh() {
     // Generate new mesh data
     const res = this._voxelState.computeMesh();
@@ -362,6 +367,7 @@ class SculptVoxel extends SculptBase {
       // if (window.screenLog) window.screenLog("Voxel: start() success (Hit Surface)", "lime");
 
       // HIDE ALL OTHER MESHES
+      /*
       var meshes = this._main.getMeshes();
       for (var i = 0; i < meshes.length; ++i) {
         if (meshes[i] !== this._voxelMesh && meshes[i] !== this._debugCube) {
@@ -370,6 +376,7 @@ class SculptVoxel extends SculptBase {
           // meshes[i].isVisible = () => false; // Hack if getter/setter exists
         }
       }
+      */
     }
     return res;
   }
@@ -510,7 +517,7 @@ class SculptVoxel extends SculptBase {
     try {
       // VoxelXR Update
       // Ensure we hide distracting meshes
-      this.hideOtherMeshes();
+      // this.hideOtherMeshes();
 
       if (!isPressed) {
         this._lastXRPos = null; // Reset stroke
@@ -669,20 +676,21 @@ class SculptVoxel extends SculptBase {
     // BAND-AID: Fix NaNs and Infinities in Normals
     this._fixNormals(this._voxelMesh);
 
-    // BAND-AID: Fix NaN Materials/Colors (Critical for ShaderFlat vMasking)
+    // FORCE VALID MATERIALS (Roughness, Metallic, MASK=1.0)
+    // Critical: Mask must be 1.0 to be sculptable.
     const materials = this._voxelMesh.getMaterials();
     let nanMat = 0;
     if (materials) {
-      for (let i = 0; i < materials.length; i++) {
-        if (isNaN(materials[i])) {
-          materials[i] = 0.0; // Reset to 0 (Unmasked, etc)
-          nanMat++;
-        }
+      for (let i = 0; i < materials.length; i += 3) {
+        // Sanitize Roughness/Metallic
+        if (!Number.isFinite(materials[i])) materials[i] = 0.3; // Default Roughness
+        if (!Number.isFinite(materials[i + 1])) materials[i + 1] = 0.0; // Default Metallic
+
+        // FORCE MASK = 1.0 (Editable)
+        // 0.0 = Frozen/Masked. 1.0 = Editable.
+        materials[i + 2] = 1.0;
       }
-      if (nanMat > 0) {
-        // if (window.screenLog) window.screenLog(`FIXED: ${nanMat} NaN Materials`, "red");
-        this._voxelMesh.updateMaterialBuffer();
-      }
+      this._voxelMesh.updateMaterialBuffer();
     }
 
     // BAND-AID: Fix NaN Colors
@@ -820,7 +828,7 @@ class SculptVoxel extends SculptBase {
     for (let k = 0; k < materials.length; k += 3) {
       materials[k] = 0.18;      // Roughness
       materials[k + 1] = 0.08;  // Metallic
-      materials[k + 2] = 0.0;   // Masking
+      materials[k + 2] = 1.0;   // Masking (1.0 = Editable)
     }
 
     staticMesh.updateGeometry(); // Force sync of all buffers
@@ -861,7 +869,6 @@ class SculptVoxel extends SculptBase {
     main.addNewMesh(multiMesh);
 
     // 6. Reset Voxel State (Clear Grid)
-    // 6. Reset Voxel State (Clear Grid)
     this._voxelState.clear();
 
     // CRITICAL: REMOVE the Voxel Mesh to prevent occlusion
@@ -881,6 +888,18 @@ class SculptVoxel extends SculptBase {
 
     // 8. Select the New Mesh
     main.setMesh(multiMesh);
+
+    // VERIFICATION: Check if selection stuck
+    if (main.getMesh() !== multiMesh) {
+      console.error("Voxel Bake: Failed to set active mesh!");
+      if (window.screenLog) window.screenLog("Bake Error: Mesh Selection Failed", "red");
+    } else {
+      console.log("Voxel Bake: Active Mesh Set to", multiMesh.getID());
+      if (window.screenLog) window.screenLog("Bake Success: Mesh Selected", "lime");
+    }
+
+    // Force Render to verify visibility
+    main.render();
   }
 
   _computeNormals(mesh, vAr, fAr) {

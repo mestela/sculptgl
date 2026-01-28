@@ -180,15 +180,17 @@ class Selection {
   renderVR(main, camera, worldRadius) {
     if (!main.getPicking().getMesh()) return;
 
-    // VR Specific Matrix Update
-    this._updateMatricesMeshVR(camera, main, worldRadius);
+    var useSym = main.getSculptManager().getSymmetry();
 
-    // Draw (No Transparency for now, just Red Ring)
-    vec3.set(this._color, 0.0, 0.0, 0.8); // BLUE for VR
-    ShaderLib[Enums.Shader.SELECTION].getOrCreate(this._gl).draw(this, true, false); // Draw Circle, no Sym for now
+    // VR Specific Matrix Update
+    this._updateMatricesMeshVR(camera, main, worldRadius, useSym);
+
+    // Draw (Blue for VR)
+    vec3.set(this._color, 0.0, 0.0, 0.8);
+    ShaderLib[Enums.Shader.SELECTION].getOrCreate(this._gl).draw(this, true, useSym);
   }
 
-  _updateMatricesMeshVR(camera, main, worldRadius) {
+  _updateMatricesMeshVR(camera, main, worldRadius, useSym) {
     var picking = main.getPicking();
     var mesh = picking.getMesh();
 
@@ -198,12 +200,10 @@ class Selection {
     vec3.normalize(_TMP_AXIS, _TMP_AXIS);
 
     // 2. Derive Orientation
-    // _BASE is [0,0,1]
     var rad = Math.acos(vec3.dot(_BASE, _TMP_AXIS));
     vec3.cross(_TMP_AXIS, _BASE, _TMP_AXIS);
 
     if (vec3.length(_TMP_AXIS) < 0.00001) {
-      // Parallel, use X axis?
       vec3.set(_TMP_AXIS, 1, 0, 0);
     }
 
@@ -213,20 +213,47 @@ class Selection {
     mat4.rotate(_TMP_MAT, _TMP_MAT, rad, _TMP_AXIS);
 
     // 4. Compute MVP
-    // camera.getProjection() * camera.getView() ?
-    // Or camera.getPV() if available?
-    // Scene.js uses cam.getProjection() and cam.getView() typically.
-    // Let's compute PV manually to be safe or use getter
-    var pv = mat4.create();
-    mat4.mul(pv, camera.getProjection(), camera.getView());
+    mat4.mul(_TMP_MATPV, camera.getProjection(), camera.getView());
 
     // Circle MVP
     mat4.scale(this._cacheCircleMVP, _TMP_MAT, [worldRadius, worldRadius, worldRadius]);
-    mat4.mul(this._cacheCircleMVP, pv, this._cacheCircleMVP);
+    mat4.mul(this._cacheCircleMVP, _TMP_MATPV, this._cacheCircleMVP);
 
-    // Hide Dot in VR (Zero Scale) to prevent "Sphere in Eyes" artifact
-    mat4.identity(this._cacheDotMVP);
-    mat4.scale(this._cacheDotMVP, this._cacheDotMVP, [0.0, 0.0, 0.0]);
+    // Dot MVP (Restore Dot Visibility - 30% of brush)
+    var dotRad = worldRadius * 0.3;
+    mat4.scale(this._cacheDotMVP, _TMP_MAT, [dotRad, dotRad, dotRad]);
+    mat4.mul(this._cacheDotMVP, _TMP_MATPV, this._cacheDotMVP);
+
+    // Symmetry MVP
+    if (useSym) {
+      var pickingSym = main.getPickingSymmetry();
+      if (pickingSym.getMesh()) {
+        // Calculate Sym Normal
+        pickingSym.polyLerp(mesh.getNormals(), _TMP_AXIS);
+        vec3.transformMat3(_TMP_AXIS, _TMP_AXIS, mat3.normalFromMat4(_TMP_MAT, mesh.getMatrix()));
+        vec3.normalize(_TMP_AXIS, _TMP_AXIS);
+
+        rad = Math.acos(vec3.dot(_BASE, _TMP_AXIS));
+        vec3.cross(_TMP_AXIS, _BASE, _TMP_AXIS);
+        if (vec3.length(_TMP_AXIS) < 0.00001) vec3.set(_TMP_AXIS, 1, 0, 0);
+
+        // Sym Model
+        mat4.identity(_TMP_MAT);
+        mat4.translate(_TMP_MAT, _TMP_MAT, vec3.transformMat4(_TMP_VEC, pickingSym.getIntersectionPoint(), mesh.getMatrix()));
+        mat4.rotate(_TMP_MAT, _TMP_MAT, rad, _TMP_AXIS);
+
+        // Sym Dot MVP
+        mat4.scale(this._cacheDotSymMVP, _TMP_MAT, [dotRad, dotRad, dotRad]);
+        mat4.mul(this._cacheDotSymMVP, _TMP_MATPV, this._cacheDotSymMVP);
+      } else {
+        // Hide Sym Dot
+        mat4.identity(this._cacheDotSymMVP);
+        mat4.scale(this._cacheDotSymMVP, this._cacheDotSymMVP, [0, 0, 0]);
+      }
+    } else {
+      mat4.identity(this._cacheDotSymMVP);
+      mat4.scale(this._cacheDotSymMVP, this._cacheDotSymMVP, [0, 0, 0]);
+    }
   }
 }
 

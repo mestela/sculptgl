@@ -70,6 +70,24 @@
 
 
 ## Deployment
+See [Deployment Protocol](#deployment-protocol)
+
+## Interactive Debugging Protocol
+- **Preference**: Use the browser console for immediate state inspection and manipulation whenever possible.
+- **Why**: It is faster, fun, and confirms "ground truth" state (CPU/GPU sync, variable values) without code-compile-reload cycles.
+- **Workflow**:
+    1.  Provide copy-pasteable JavaScript snippets for the user to run in the console.
+    2.  Use `app`, `app.getMesh()`, `app.getPicking()`, `app.getSculptManager()` entry points.
+    3.  Analyze the return values to decide the next code fix.
+
+## Communication Style
+1.  **NO EMOJIS**: Do not use emojis in ANY response, title, task name, or commit message. Zero tolerance.
+2.  **Professional Tone**: Keep all communication professional, concise, and sober.
+3.  **No False Confidence**: Do not use words like "final", "real", "definitive", "corrected" to describe a solution. Use "updated", "new iteration", "attempt".
+
+```
+
+## Deployment Protocol
 **Script**: `./deploy.sh [USER] [HOST] [DEST_PATH]`
 -   **CRITICAL**: User MUST be `tokeruadmin`. Do not use `mattestela` or `root`.
 -   **Auth**: Requires SSH Key + **Physical Security Key Tap**.
@@ -96,9 +114,5 @@
 ## Deployment & Caching (Updated Jan 26)
 1.  **Client-Side Clearing**: User utilizes "Application -> Clear Site Data" in DevTools to ensure fresh code.
 2.  **No Manual Busting**: Do not manually bump version query strings in `index.html` (`?v=...`) as a workflow. It is unnecessary complexity.
-## Communication Style
-1.  **NO EMOJIS**: Do not use emojis in ANY response, title, task name, or commit message. Zero tolerance.
-2.  **Professional Tone**: Keep all communication professional, concise, and sober.
-3.  **No False Confidence**: Do not use words like "final", "real", "definitive", "corrected" to describe a solution. Use "updated", "new iteration", "attempt".
 
 

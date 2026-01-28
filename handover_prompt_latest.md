@@ -1,32 +1,40 @@
-# Handover Prompt (v0.5.350)
+# Handover Prompt: VR Symmetry Debugging (FAILED SESSION)
 
-## Context
-You are working on **SculptXR** (WebXR Voxel Sculpting).
-The **Invisible Bake** saga is RESOLVED. Both Matcap and PBR shaders are working (v0.5.350).
+## Current Status
+**CRITICAL**: VR Interaction (Sculpt/Move) was broken in `v0.5.370`.
+**Action**: Reverted `src/Scene.js` and `src/math3d/Picking.js` to previous state (git restore).
+**Current Version**: Code matches `v0.5.367` (approx).
+**Symptoms**:
+1.  **Brush**: Works Main, but Symmetry Cursor is "under surface" (picking backfaces?).
+2.  **Move Tool**: Main works. Symmetry "shoots away" (likely grabbing backfaces).
 
-## Critical Files
-1.  **`src/editing/tools/SculptVoxel.js`**: Bake logic (Double Transform fix applied here).
-2.  **`src/render/shaders/ShaderMatcap.js`**: Shader fix (No `uFlat` redef).
-3.  **`src/render/shaders/glsl/pbr.glsl.js`**: Shader fix (No `uExposure` redef).
-4.  **`index.html`**: Version v0.5.350.
+## Session Summary (What We Tried)
+1.  **Radius Increase**: Fixed "Snapping" (Move Tool), but didn't fix "Under Surface" visual.
+2.  **Headset-Based Culling**: Attempted to use `HeadsetPos` to Cull backfaces. User reported "Bidentical behavior" (didn't work).
+3.  **Normal-Guided Culling** (v0.5.370):
+    *   Goal: Mimic Desktop Raycast by using Main Brush Normal as a "Hint" for Symmetry.
+    *   Logic: `dot(FaceNormal, MirroredMainNormal) > 0`.
+    *   **RESULT**: BROKE EVERYTHING. "I can't move the world, I can't sculpt".
+    *   *Hypothesis*: My matrix transform logic (`transpose(inverse)`) or coordinate space (World vs Local) in `Picking.js` was buggy, causing `intersectionSphereMeshes` to return NO HITS or throw errors, killing the input loop.
 
-## Current Status (v0.5.350)
--   **Bake Visibility**: **FIXED**.
-    -   Vertices: Frozen in World Space.
-    -   Matrix: Identity.
-    -   Shader: Matcap/PBR compilation errors resolved.
--   **Voxel Stroke**: Fixed (Centered).
+## Technical Diagnosis
+**Desktop vs VR**:
+*   **Desktop**: Uses `intersectionMouseMeshes` (Raycast). Implicity hits FRONT face first. Safe.
+*   **VR**: Uses `intersectionSphereMeshes` (Proximity). Hits CLOSEST point.
+    *   If Symmetry Point is slightly *inside* mesh: Backface is closer -> Picks Backface.
+    *   Backface Normal points IN -> visual artifact ("Under Surface").
 
-## Pending Issues (Next Up)
--   **Tools on Baked Mesh**: User reports "regular sculpt tools don't work on the new mesh".
-    -   Likely cause: Baked mesh might be missing `initTopology`, `updateOctree`, or Picking mismatch.
-    -   Or `SculptManager` not recognizing the new mesh type properly?
+## Next Steps
+1.  **Debug Normal-Guided Culling**:
+    *   This IS the correct approach (User agreed).
+    *   But implementation was buggy in `v0.5.370`.
+    *   Need to verify `mat4.transpose` logic and `worldHintNormal` transformation.
+    *   *Unit Test*: Write a test (or use console logs) to verify the math before breaking VR again.
 
-## Deployment
--   **Beta**: `./deploy_beta.sh` (Current: v0.5.350)
--   **Prod**: Not yet deployed.
+2.  **Alternative**: Use `intersectionRayMeshes` for VR logic?
+    *   Maybe cast a short ray from `PreviousPos` to `CurrentPos`?
+    *   Or `Center` to `Center + Normal`?
 
-## Protocol
--   **Paranoid Commit**: Commit working states immediately.
--   **Version Increment**: ALWAYS bump version in `index.html`.
--   **Beta First**: Always test in Beta.
+## Files to Watch
+*   `src/math3d/Picking.js` (Core Picking Logic)
+*   `src/Scene.js` (VR Input Loop)

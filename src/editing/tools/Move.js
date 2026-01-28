@@ -222,19 +222,18 @@ class Move extends SculptBase {
 
     // 1. RESTORE PHASE: Reset all affected vertices to original positions
     // We must do ALL restores before ANY moves to handle overlapping vertices correctly.
-    
-    // Restore Primary
+    // Move.js does NOT update _lastVRPos in sculptStrokeXR, so vStartLocal is STATIC.
+    // We are calculating Total Displacement (Start -> Curr), so we MUST reset to vProxy.
     this.copyVerticesProxy(picking, moveData);
 
-    // Restore Symmetry
     var pickingSym = main.getPickingSymmetry();
     const useSym = main.getSculptManager().getSymmetry() && pickingSym.getMesh();
     
     if (useSym) {
-        const moveDataSym = this._moveDataSym;
-        if (moveDataSym.iVerts) {
-            this.copyVerticesProxy(pickingSym, moveDataSym);
-        }
+      const moveDataSym = this._moveDataSym;
+      if (moveDataSym.iVerts) {
+        this.copyVerticesProxy(pickingSym, moveDataSym);
+      }
     }
 
     // 2. MOVE PHASE: Apply deltas
@@ -246,12 +245,20 @@ class Move extends SculptBase {
     }
 
     // Apply Symmetry Move
+    // Apply Symmetry Move
     if (useSym) {
         const moveDataSym = this._moveDataSym;
         if (moveDataSym.iVerts) {
-            // Calculate and apply symmetry delta
-            vec3.copy(moveDataSym.dir, moveData.dir);
-            moveDataSym.dir[0] = -moveDataSym.dir[0]; // Mirror X Delta
+          // Calculate correctly mirrored delta
+          var symStartLocal = vec3.clone(vStartLocal);
+          var symCurrLocal = vec3.clone(vCurrLocal);
+
+          var ptPlane = mesh.getSymmetryOrigin();
+          var nPlane = mesh.getSymmetryNormal();
+          Geometry.mirrorPoint(symStartLocal, ptPlane, nPlane);
+          Geometry.mirrorPoint(symCurrLocal, ptPlane, nPlane);
+
+          vec3.sub(moveDataSym.dir, symCurrLocal, symStartLocal);
             
             this.move(moveDataSym.iVerts, moveDataSym.center, pickingSym.getLocalRadius2(), moveDataSym, pickingSym);
         }

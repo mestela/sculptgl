@@ -1601,6 +1601,9 @@ class Scene {
     // 4. Picking State Synchronization
     // FIX v0.5.40: Quadruple search radius (User Request)
     // The actual sculpting radius is reset below via _rWorld2, so this only affects "snapping" range.
+
+
+
     let picked = this._picking.intersectionSphereMeshes(this._meshes, enginePos, pickingRadius * 4.0);
 
     if (picked) {

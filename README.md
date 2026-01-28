@@ -47,6 +47,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - Export OBJ (will save to Downloads)
     - Import OBJ (will jump out of fullscreen mode and open a file browser)
     - **Voxel Sculpting**: Voxel Tool with additive/subtractive support and Undo/Redo.
+    - Voxel brush
 
 ## Todo
 - **Functionality**:
@@ -56,7 +57,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - Add primitives menu missing
     - Transform tool/gizmo missing
     - Lots of 'minor' UI missing (need to take an inventory of all the menu items)
-    - Voxel brush
+    - Re-symmetrize function, choose left->right, right->left
     - Spectator Mode: Implement Desktop Mirroring for PCVR (See `docs/spectator_mode_implementation.md`)
 - **UI + UX**  
     - Menu draws over controllers, it should correctly place itself in depth against controllers/the mesh
