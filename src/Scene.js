@@ -110,8 +110,7 @@ class Scene {
   }
 
   start() {
-    if (window.screenLog) window.screenLog("Scene: Loaded v0.5.271", "lime");
-    console.log("Scene: Loaded v0.5.271");
+
     this.initWebGL();
     if (!this._gl)
       return;
