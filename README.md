@@ -7,6 +7,7 @@
 **[Try the Live VR Build Here](https://tokeru.com/sculptxr/)** 
 
 ## Releases
+- v0.5.375: Fix VR Symmetry Skipping (Search Radius 4x), Revert Normal Culling
 - v0.5.60: fixed desktop exposure (removed double-gamma), calibrated VR scale (100 units = 1m), fixed initial camera offset (starting position)
 - v0.5.52: matcap material fix for VR, no longer rotates on head tilt
 - v0.5.43: fixed move symmetry, thumbstick shortcuts, menu interaction
@@ -42,7 +43,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - Rendering modes: Matcap, PBR, Wireframe, Flat Shading (Desktop/VR Exposure matched)
     - Brush Indicator (Cursor) restored in VR
     - Correct World Scale (1.0 = 1 meter) & Comfortable Initial Camera Position
-    - Symmetry (still not 100%, but getting there)
+    - Symmetry (Fixed "Skipping" issues)
     - Export OBJ (will save to Downloads)
     - Import OBJ (will jump out of fullscreen mode and open a file browser)
     - **Voxel Sculpting**: Voxel Tool with additive/subtractive support and Undo/Redo.
@@ -56,6 +57,7 @@ It should work on any WebXR compatible device. So far I've tested on
     - Transform tool/gizmo missing
     - Lots of 'minor' UI missing (need to take an inventory of all the menu items)
     - Voxel brush
+    - Spectator Mode: Implement Desktop Mirroring for PCVR (See `docs/spectator_mode_implementation.md`)
 - **UI + UX**  
     - Menu draws over controllers, it should correctly place itself in depth against controllers/the mesh
     - Controllers are represented with cubes, replace with something better    
@@ -65,6 +67,9 @@ It should work on any WebXR compatible device. So far I've tested on
     - Jump between passthrough (AR) and immersive (VR) modes is janky
     - UX for importing meshes is clunky (forced back into 2d mode to get standard browser import dialog)
     - Double handed grip needs work, gets hard to control when the world has been scaled too large
+    - **Input/Shortcuts**: Move Undo/Redo to Left Stick (User feedback: Right stick interferes with resizing)
+    - **Visual Feedback**: Show Voxel Grid/Boundary Box (Users report drawing out of bounds)
+    - **Content**: Add Primitive shapes (Cone, Cylinder, etc) for starting
 
 
 
